@@ -1,0 +1,63 @@
+dnl $Id$
+dnl config.m4 for extension blog
+
+dnl Comments in this file start with the string 'dnl'.
+dnl Remove where necessary. This file will not work
+dnl without editing.
+
+dnl If your extension references something external, use with:
+
+dnl PHP_ARG_WITH(blog, for blog support,
+dnl Make sure that the comment is aligned:
+dnl [  --with-blog             Include blog support])
+
+dnl Otherwise use enable:
+
+PHP_ARG_ENABLE(blog, whether to enable blog support,
+dnl Make sure that the comment is aligned:
+[  --enable-blog           Enable blog support])
+
+if test "$PHP_BLOG" != "no"; then
+  dnl Write more examples of tests here...
+
+  dnl # --with-blog -> check with-path
+  dnl SEARCH_PATH="/usr/local /usr"     # you might want to change this
+  dnl SEARCH_FOR="/include/blog.h"  # you most likely want to change this
+  dnl if test -r $PHP_BLOG/$SEARCH_FOR; then # path given as parameter
+  dnl   BLOG_DIR=$PHP_BLOG
+  dnl else # search default path list
+  dnl   AC_MSG_CHECKING([for blog files in default path])
+  dnl   for i in $SEARCH_PATH ; do
+  dnl     if test -r $i/$SEARCH_FOR; then
+  dnl       BLOG_DIR=$i
+  dnl       AC_MSG_RESULT(found in $i)
+  dnl     fi
+  dnl   done
+  dnl fi
+  dnl
+  dnl if test -z "$BLOG_DIR"; then
+  dnl   AC_MSG_RESULT([not found])
+  dnl   AC_MSG_ERROR([Please reinstall the blog distribution])
+  dnl fi
+
+  dnl # --with-blog -> add include path
+  dnl PHP_ADD_INCLUDE($BLOG_DIR/include)
+
+  dnl # --with-blog -> check for lib and symbol presence
+  dnl LIBNAME=blog # you may want to change this
+  dnl LIBSYMBOL=blog # you most likely want to change this 
+
+  dnl PHP_CHECK_LIBRARY($LIBNAME,$LIBSYMBOL,
+  dnl [
+  dnl   PHP_ADD_LIBRARY_WITH_PATH($LIBNAME, $BLOG_DIR/lib, BLOG_SHARED_LIBADD)
+  dnl   AC_DEFINE(HAVE_BLOGLIB,1,[ ])
+  dnl ],[
+  dnl   AC_MSG_ERROR([wrong blog lib version or lib not found])
+  dnl ],[
+  dnl   -L$BLOG_DIR/lib -lm
+  dnl ])
+  dnl
+  dnl PHP_SUBST(BLOG_SHARED_LIBADD)
+
+  PHP_NEW_EXTENSION(blog, blog.c, $ext_shared)
+fi

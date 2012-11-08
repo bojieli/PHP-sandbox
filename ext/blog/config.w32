@@ -1,0 +1,13 @@
+// $Id$
+// vim:ft=javascript
+
+// If your extension references something external, use ARG_WITH
+// ARG_WITH("blog", "for blog support", "no");
+
+// Otherwise, use ARG_ENABLE
+// ARG_ENABLE("blog", "enable blog support", "no");
+
+if (PHP_BLOG != "no") {
+	EXTENSION("blog", "blog.c");
+}
+
