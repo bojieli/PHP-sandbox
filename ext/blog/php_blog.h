@@ -43,11 +43,51 @@ PHP_RSHUTDOWN_FUNCTION(blog);
 PHP_MINFO_FUNCTION(blog);
 
 PHP_FUNCTION(request_daemon);	
+PHP_FUNCTION(install_blog_filesystem);
+PHP_FUNCTION(install_plugin);
+PHP_FUNCTION(remove_plugin);
+PHP_FUNCTION(sendmail);
+PHP_FUNCTION(access_log);
+PHP_FUNCTION(http_get);
+PHP_FUNCTION(http_post);
 
-char* parse_request(char* method, int method_len, char* action, int action_len, zval *req, int* ret_req_len);
+void php_request_daemon(zval* return_value, const char* method, int method_len, const char* action, int action_len, zval *data);
+char* parse_request(const char* method, int method_len, const char* action, int action_len, zval *req, int* ret_req_len);
+int parse_request_data(char* req_str, zval* req, int req_len);
 char* daemon_get_response(char* req_str, int req_len);
 int parse_response(zval* return_value, char* response);
 
+#define true 1
+#define false 0
+
+#define DEFINE_ARRAY(data) zval* data; \
+	MAKE_STD_ZVAL(data); \
+	array_init(data)
+
+#define REQ_MAXLEN 65536
+#define REQ_APPEND(str,len) do { \
+	if (req_len + (len) >= REQ_MAXLEN) { \
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "request too long"); \
+		break; \
+	} \
+	memcpy(req_str + req_len, (str), (len)); \
+	req_len += (len); \
+} while(0)
+#define REQ_APPEND_CONST(str) REQ_APPEND((str), strlen(str))
+#define IS_KEY_CHAR(c) ((c)>='0' && (c)<='9' || (c)>='a' && (c)<='z' || (c)>='A' && (c)<='Z' || (c)=='-' || (c)=='_')
+
+#define RESPONSE_MAXLEN 512000
+
+#define ASSERT_RESPONSE_CHAR(c) do { \
+	if (*response != c) { \
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Unexpected character in daemon response 0x%x (%c expected)", *response, c); \
+		return 0; \
+	} \
+} while(0)
+#define IS_VALUE_CHAR(c) ((c)>=33 && (c)<=126 && (c)!=':')
+
+#define KEY_MAXLEN 256
+	
 /* 
   	Declare any global variables you may need between the BEGIN
 	and END macros here:     

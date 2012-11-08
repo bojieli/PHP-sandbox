@@ -176,6 +176,142 @@ PHP_FUNCTION(confirm_blog_compiled)
    follow this convention for the convenience of others editing your code.
 */
 
+/* {{{ proto bool install_blog_filesystem(int appid) */
+PHP_FUNCTION(install_blog_filesystem)
+{
+	int appid;
+	const char *method = "async-callback";
+	const char *action = "install-blog-filesystem";
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &appid) == FAILURE) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: install_blog_filesystem(int appid)");
+		RETURN_BOOL(false);
+	}
+	
+	DEFINE_ARRAY(data);
+	add_assoc_long(data, "appid", appid);
+	php_request_daemon(return_value, method, strlen(method), action, strlen(method), data);
+	RETURN_BOOL(true);
+}
+/* }}} */
+
+/* {{{ proto bool install_plugin(string plugin_name, string remote_filename) */
+PHP_FUNCTION(install_plugin)
+{
+	char *plugin = NULL, *filename = NULL;
+	int plugin_len, filename_len;
+	const char *method = "async-callback";
+	const char *action = "install-plugin";
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ss", plugin, &plugin_len, filename, &filename_len) == FAILURE) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: install_plugin(string plugin_name, string remote_filename)");
+		RETURN_BOOL(false);
+	}
+
+	DEFINE_ARRAY(data);
+	add_assoc_stringl(data, "plugin-name", plugin, plugin_len, 0);
+	add_assoc_stringl(data, "remote-filename", filename, filename_len, 0);
+	php_request_daemon(return_value, method, strlen(method), action, strlen(method), data);
+	RETURN_BOOL(true);
+}
+/* }}} */
+
+/* {{{ proto bool remove_plugin(string plugin_name) */
+PHP_FUNCTION(remove_plugin)
+{
+	char *plugin = NULL;
+	int plugin_len;
+	const char *method = "async-callback";
+	const char *action = "remove-plugin";
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", plugin, &plugin_len) == FAILURE) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: remove_plugin(string plugin_name)");
+		RETURN_BOOL(false);
+	}
+
+	DEFINE_ARRAY(data);
+	add_assoc_stringl(data, "plugin-name", plugin, plugin_len, 0);
+	php_request_daemon(return_value, method, strlen(method), action, strlen(method), data);
+	RETURN_BOOL(true);
+}
+/* }}} */
+
+/* {{{ proto bool sendmail(string target, string subject, string content) */
+PHP_FUNCTION(sendmail)
+{
+	char *target = NULL, *subject = NULL, *content = NULL;
+	int target_len, subject_len, content_len;
+	const char *method = "async-callback";
+	const char *action = "install-blog-filesystem";
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "sss", target, &target_len, subject, &subject_len, content, &content_len) == FAILURE) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: sendmail(string target, string subject, string content)");
+		RETURN_BOOL(false);
+	}
+
+	DEFINE_ARRAY(data);
+	add_assoc_stringl(data, "target", target, target_len, 0);
+	add_assoc_stringl(data, "subject", subject, subject_len, 0);
+	add_assoc_stringl(data, "content", content, content_len, 0);
+	php_request_daemon(return_value, method, strlen(method), action, strlen(method), data);
+	RETURN_BOOL(true);
+}
+/* }}} */
+
+/* {{{ proto bool access_log(int exec-time, int query-num) */
+PHP_FUNCTION(access_log)
+{
+	int exec_time, query_num;
+	const char *method = "async";
+	const char *action = "access-log";
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ll", &exec_time, &query_num) == FAILURE) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: access_log(int exec_time, int query_num)");
+		RETURN_BOOL(false);
+	}
+
+	DEFINE_ARRAY(data);
+	add_assoc_long(data, "exec-time", exec_time);
+	add_assoc_long(data, "query-num", query_num);
+	php_request_daemon(return_value, method, strlen(method), action, strlen(method), data);
+	RETURN_BOOL(true);
+}
+/* }}} */
+
+/* {{{ proto array http_get(string url)
+	return: {status: int, body: string} */
+PHP_FUNCTION(http_get)
+{
+	char *url = NULL;
+	int url_len;
+	const char *method = "sync";
+	const char *action = "http-get";
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", url, &url_len) == FAILURE) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: http_get(string url)");
+		RETURN_NULL();
+	}
+
+	DEFINE_ARRAY(data);
+	add_assoc_stringl(data, "url", url, url_len, 0);
+	php_request_daemon(return_value, method, strlen(method), action, strlen(method), data);
+}
+/* }}} */
+
+/* {{{ proto array http_post(string url, string body)
+	return: {status: int, body: string} */
+PHP_FUNCTION(http_post)
+{
+	char *url = NULL, *body = NULL;
+	int url_len, body_len;
+	const char *method = "sync";
+	const char *action = "http-post";
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ss", url, &url_len, body, &body_len) == FAILURE) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: http_post(string url, string body)");
+		RETURN_NULL();
+	}
+
+	DEFINE_ARRAY(data);
+	add_assoc_stringl(data, "url", url, url_len, 0);
+	add_assoc_stringl(data, "body", body, body_len, 0);
+	php_request_daemon(return_value, method, strlen(method), action, strlen(method), NULL);
+}
+/* }}} */
+
 /* {{{ proto array request_daemon(string method, string action, array data)
    Return an array of data retrieved from daemon. */
 PHP_FUNCTION(request_daemon)
@@ -189,6 +325,15 @@ PHP_FUNCTION(request_daemon)
 		RETURN_NULL();
 	}
 
+	php_request_daemon(return_value, method, method_len, action, action_len, data);
+}
+/* }}} */
+
+/* --- INTERNAL FUNCTIONS BELOW*/
+
+/* {{{ proto INTERNAL void php_request_daemon(return_value, method, method_len, action, action_len, data) */
+void php_request_daemon(zval* return_value, const char* method, int method_len, const char* action, int action_len, zval *data)
+{
 	int req_len;
 	char *req_str = parse_request(method, method_len, action, action_len, data, &req_len);
 	if (req_str == NULL)
@@ -226,23 +371,8 @@ die:
 
 /* {{{ proto INTERNAL char* parse_request()
  */
-char* parse_request(char* method, int method_len, char* action, int action_len, zval *req, int* ret_req_len) {
-
-#define REQ_MAXLEN 65536
-#define REQ_APPEND(str,len) do { \
-	if (req_len + (len) >= REQ_MAXLEN) { \
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "request too long"); \
-		break; \
-	} \
-	memcpy(req_str + req_len, (str), (len)); \
-	req_len += (len); \
-} while(0)
-#define REQ_APPEND_CONST(str) REQ_APPEND((str), strlen(str))
-#define IS_KEY_CHAR(c) ((c)>='0' && (c)<='9' || (c)>='a' && (c)<='z' || (c)>='A' && (c)<='Z' || (c)=='-' || (c)=='_')
-
-	HashTable *req_hash = Z_ARRVAL_P(req);
-	HashPosition req_pointer;
-	zval **value;
+char* parse_request(const char* method, int method_len, const char* action, int action_len, zval *req, int* ret_req_len) 
+{
 	char *req_str = (char*)emalloc(REQ_MAXLEN);
 	int req_len = 0;
 	
@@ -256,6 +386,29 @@ char* parse_request(char* method, int method_len, char* action, int action_len, 
 	REQ_APPEND_CONST("appid:p:");
 	REQ_APPEND_CONST("0"); // for testing
 	REQ_APPEND_CONST("\n\n");
+
+	if (req) {
+		req_len = parse_request_data(req_str, req, req_len);
+		if (req_len < 0)
+			goto die;
+	}
+
+	*ret_req_len = req_len;
+	return req_str;
+die:
+	if (req_str)
+		efree(req_str);
+	return NULL;
+}
+/* }}} */
+
+/* {{{ proto INTERNAL int parse_request_data(req_str, req, req_len)
+	return: new req_len */
+int parse_request_data(char* req_str, zval* req, int req_len) 
+{
+	HashTable *req_hash = Z_ARRVAL_P(req);
+	HashPosition req_pointer;
+	zval **value;
 
     for (zend_hash_internal_pointer_reset_ex(req_hash, &req_pointer);
 		zend_hash_get_current_data_ex(req_hash, (void**) &value, &req_pointer) == SUCCESS; 
@@ -293,18 +446,15 @@ char* parse_request(char* method, int method_len, char* action, int action_len, 
 		REQ_APPEND(value_str, value_str_len);
 		REQ_APPEND_CONST("\n");
     }
-	*ret_req_len = req_len;
-	return req_str;
+	return req_len;
 die:
-	if (req_str)
-		efree(req_str);
-	return NULL;
+	return -1;
 }
 /* }}} */
 
-/* {{{ proto INTERNAL char* daemon_get_response(req_str, req_len)
- */
-char* daemon_get_response(char* req_str, int req_len) {
+/* {{{ proto INTERNAL char* daemon_get_response(req_str, req_len) */
+char* daemon_get_response(char* req_str, int req_len) 
+{
 	struct sockaddr_in pin;
 	struct hostent *nlp_host;
 	int sd; 
@@ -331,7 +481,6 @@ char* daemon_get_response(char* req_str, int req_len) {
 	
 	send(sd, req_str, req_len, 0);
 
-#define RESPONSE_MAXLEN 512000
 	char* buf = emalloc(RESPONSE_MAXLEN+1);
 	bzero(buf, RESPONSE_MAXLEN+1);
 	int length = recv(sd, buf, RESPONSE_MAXLEN, 0);
@@ -343,16 +492,8 @@ char* daemon_get_response(char* req_str, int req_len) {
 
 /* {{{ proto INTERNAL int parse_response(return_value, response)
  */
-int parse_response(zval* return_value, char* response) {
-#define ASSERT_RESPONSE_CHAR(c) do { \
-	if (*response != c) { \
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Unexpected character in daemon response 0x%x (%c expected)", *response, c); \
-		return 0; \
-	} \
-} while(0)
-#define IS_VALUE_CHAR(c) ((c)>=33 && (c)<=126 && (c)!=':')
-
-#define KEY_MAXLEN 256
+int parse_response(zval* return_value, char* response) 
+{
 	char type;
 	char *orig_response;
 	char *value;
