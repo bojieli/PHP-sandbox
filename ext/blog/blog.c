@@ -28,6 +28,7 @@
 #include "php_blog.h"
 #include "ext/standard/base64.h"
 #include "ext/standard/url.h"
+#include "Zend/zend_operators.h"
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -45,6 +46,13 @@ static int le_blog;
  */
 const zend_function_entry blog_functions[] = {
 	PHP_FE(request_daemon, NULL)
+	PHP_FE(install_blog_filesystem, NULL)
+	PHP_FE(install_plugin, NULL)
+	PHP_FE(remove_plugin, NULL)
+	PHP_FE(sendmail, NULL)
+	PHP_FE(http_get, NULL)
+	PHP_FE(http_post, NULL)
+	PHP_FE(parse_response, NULL)
 	PHP_FE_END	/* Must be the last line in blog_functions[] */
 };
 /* }}} */
@@ -189,10 +197,10 @@ PHP_FUNCTION(install_blog_filesystem)
 	
 	DEFINE_ARRAY(data);
 	add_assoc_long(data, "appid", appid);
-	php_request_daemon(return_value, method, strlen(method), action, strlen(method), data);
+	php_request_daemon(return_value, method, strlen(method), action, strlen(action), data);
 	RETURN_BOOL(true);
 }
-/* }}} */
+/* }}} */ 
 
 /* {{{ proto bool install_plugin(string plugin_name, string remote_filename) */
 PHP_FUNCTION(install_plugin)
@@ -201,7 +209,7 @@ PHP_FUNCTION(install_plugin)
 	int plugin_len, filename_len;
 	const char *method = "async-callback";
 	const char *action = "install-plugin";
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ss", plugin, &plugin_len, filename, &filename_len) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ss", &plugin, &plugin_len, &filename, &filename_len) == FAILURE) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: install_plugin(string plugin_name, string remote_filename)");
 		RETURN_BOOL(false);
 	}
@@ -209,38 +217,38 @@ PHP_FUNCTION(install_plugin)
 	DEFINE_ARRAY(data);
 	add_assoc_stringl(data, "plugin-name", plugin, plugin_len, 0);
 	add_assoc_stringl(data, "remote-filename", filename, filename_len, 0);
-	php_request_daemon(return_value, method, strlen(method), action, strlen(method), data);
+	php_request_daemon(return_value, method, strlen(method), action, strlen(action), data);
 	RETURN_BOOL(true);
 }
-/* }}} */
+/* }}} */ 
 
-/* {{{ proto bool remove_plugin(string plugin_name) */
+/* {{{ proto bool remove_plugin(string plugin_name) */ 
 PHP_FUNCTION(remove_plugin)
 {
 	char *plugin = NULL;
 	int plugin_len;
 	const char *method = "async-callback";
 	const char *action = "remove-plugin";
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", plugin, &plugin_len) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &plugin, &plugin_len) == FAILURE) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: remove_plugin(string plugin_name)");
 		RETURN_BOOL(false);
 	}
 
 	DEFINE_ARRAY(data);
 	add_assoc_stringl(data, "plugin-name", plugin, plugin_len, 0);
-	php_request_daemon(return_value, method, strlen(method), action, strlen(method), data);
+	php_request_daemon(return_value, method, strlen(method), action, strlen(action), data);
 	RETURN_BOOL(true);
 }
 /* }}} */
 
-/* {{{ proto bool sendmail(string target, string subject, string content) */
+/* {{{ proto bool sendmail(string target, string subject, str ing content) */
 PHP_FUNCTION(sendmail)
 {
 	char *target = NULL, *subject = NULL, *content = NULL;
 	int target_len, subject_len, content_len;
 	const char *method = "async-callback";
 	const char *action = "install-blog-filesystem";
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "sss", target, &target_len, subject, &subject_len, content, &content_len) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "sss", &target, &target_len, &subject, &subject_len, &content, &content_len) == FAILURE) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: sendmail(string target, string subject, string content)");
 		RETURN_BOOL(false);
 	}
@@ -249,7 +257,7 @@ PHP_FUNCTION(sendmail)
 	add_assoc_stringl(data, "target", target, target_len, 0);
 	add_assoc_stringl(data, "subject", subject, subject_len, 0);
 	add_assoc_stringl(data, "content", content, content_len, 0);
-	php_request_daemon(return_value, method, strlen(method), action, strlen(method), data);
+	php_request_daemon(return_value, method, strlen(method), action, strlen(action), data);
 	RETURN_BOOL(true);
 }
 /* }}} */
@@ -258,18 +266,25 @@ PHP_FUNCTION(sendmail)
 PHP_FUNCTION(access_log)
 {
 	int exec_time, query_num;
-	const char *method = "async";
-	const char *action = "access-log";
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ll", &exec_time, &query_num) == FAILURE) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: access_log(int exec_time, int query_num)");
 		RETURN_BOOL(false);
 	}
+	php_access_log(exec_time, query_num);
+	RETURN_BOOL(true);
+}
+/* }}} */
 
+/* {{{ proto INTERNAL void php_access_log(int exec_time, int query_num) */
+void php_access_log(int exec_time, int query_num)
+{
+	const char *method = "async";
+	const char *action = "access-log";
+	zval *return_value = NULL;
 	DEFINE_ARRAY(data);
 	add_assoc_long(data, "exec-time", exec_time);
 	add_assoc_long(data, "query-num", query_num);
-	php_request_daemon(return_value, method, strlen(method), action, strlen(method), data);
-	RETURN_BOOL(true);
+	php_request_daemon(return_value, method, strlen(method), action, strlen(action), data);
 }
 /* }}} */
 
@@ -281,14 +296,18 @@ PHP_FUNCTION(http_get)
 	int url_len;
 	const char *method = "sync";
 	const char *action = "http-get";
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", url, &url_len) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &url, &url_len) == FAILURE) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: http_get(string url)");
 		RETURN_NULL();
 	}
+	const char *prefix = "http://api.wordpress.org/";
+	char *full_url = emalloc(strlen(prefix) + url_len);
+	memcpy(full_url, prefix, strlen(prefix));
+	memcpy(full_url + strlen(prefix), url, url_len);
 
 	DEFINE_ARRAY(data);
-	add_assoc_stringl(data, "url", url, url_len, 0);
-	php_request_daemon(return_value, method, strlen(method), action, strlen(method), data);
+	add_assoc_stringl(data, "url", full_url, strlen(prefix) + url_len, 0);
+	php_request_daemon(return_value, method, strlen(method), action, strlen(action), data);
 }
 /* }}} */
 
@@ -296,19 +315,87 @@ PHP_FUNCTION(http_get)
 	return: {status: int, body: string} */
 PHP_FUNCTION(http_post)
 {
-	char *url = NULL, *body = NULL;
-	int url_len, body_len;
+	char *url = NULL;
+	int url_len;
+	zval *post_data = NULL;
 	const char *method = "sync";
 	const char *action = "http-post";
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ss", url, &url_len, body, &body_len) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|a", &url, &url_len, &post_data) == FAILURE) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: http_post(string url, string body)");
 		RETURN_NULL();
 	}
-
+	const char *prefix = "http://api.wordpress.org/";
+	char *full_url = emalloc(strlen(prefix) + url_len);
+	memcpy(full_url, prefix, strlen(prefix));
+	memcpy(full_url + strlen(prefix), url, url_len);
+	
 	DEFINE_ARRAY(data);
-	add_assoc_stringl(data, "url", url, url_len, 0);
-	add_assoc_stringl(data, "body", body, body_len, 0);
-	php_request_daemon(return_value, method, strlen(method), action, strlen(method), NULL);
+	add_assoc_stringl(data, "url", full_url, strlen(prefix) + url_len, 0);
+
+	if (post_data) {
+		char *body = emalloc(REQ_MAXLEN);
+		int body_len = parse_post_params(post_data, body);
+		if (body_len > 0)
+			add_assoc_stringl(data, "body", body, body_len, 0);
+	}
+	php_request_daemon(return_value, method, strlen(method), action, strlen(action), data);
+}
+/* }}} */
+
+/* {{{ proto INTERNAL int parse_post_params(data, req_str) 
+	return req_str_len */
+/* key=value+key=value ... */
+int parse_post_params(zval* req, char* req_str)
+{
+	int req_len = 0;
+	HashTable *req_hash = Z_ARRVAL_P(req);
+	HashPosition req_pointer;
+	zval **value;
+	int first = true;
+
+    for (zend_hash_internal_pointer_reset_ex(req_hash, &req_pointer);
+		zend_hash_get_current_data_ex(req_hash, (void**) &value, &req_pointer) == SUCCESS; 
+		zend_hash_move_forward_ex(req_hash, &req_pointer)) {
+
+		if (!first) {
+			REQ_APPEND_CONST("+");
+		} else {
+			first = false;
+		}
+
+		char *key;
+		int key_len;
+		long index;
+		if (zend_hash_get_current_key_ex(req_hash, &key, &key_len, &index, 0, &req_pointer) == HASH_KEY_IS_STRING) {
+			int i;
+			key_len--; // original length includes \0
+			for (i=0; i<key_len; i++) {
+				if (! IS_KEY_CHAR(key[i])) {
+					php_error_docref(NULL TSRMLS_CC, E_WARNING, "array key of data should be [a-zA-Z0-9_-]+ (%s given)", key);
+					goto die;
+				}
+			}
+			REQ_APPEND(key, key_len);
+        }
+		else {
+			php_error_docref(NULL TSRMLS_CC, E_WARNING, "array key of data should be string (NOT number)");
+			goto die;
+		}
+
+		REQ_APPEND_CONST("=");
+
+		convert_to_string(*value);
+		if (Z_TYPE_PP(value) != IS_STRING) {
+			php_error_docref(NULL TSRMLS_CC, E_WARNING, "array value of data should be able to convert to string");
+			goto die;
+		}
+		int value_str_len;
+		char *value_str = php_url_encode(Z_STRVAL_PP(value), Z_STRLEN_PP(value), &value_str_len);
+		REQ_APPEND(value_str, value_str_len);
+    }
+	return req_len;
+die:
+	return -1;
 }
 /* }}} */
 
@@ -347,10 +434,11 @@ void php_request_daemon(zval* return_value, const char* method, int method_len, 
 	}
 	if (*response == '*') {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Daemon returned error: %s", response);
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Original query string: %s", req_str);
 		goto die;
 	}
 
-	if (! parse_response(return_value, response)) {
+	if (! php_parse_response(return_value, response)) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Daemon response parse failed");
 		goto die;
 	}
@@ -437,8 +525,9 @@ int parse_request_data(char* req_str, zval* req, int req_len)
 
 		REQ_APPEND_CONST(":b:");
 
+		convert_to_string(*value);
 		if (Z_TYPE_PP(value) != IS_STRING) {
-			php_error_docref(NULL TSRMLS_CC, E_WARNING, "array value of data should be string");
+			php_error_docref(NULL TSRMLS_CC, E_WARNING, "array value of data should be able to convert to string");
 			goto die;
 		}
 		int value_str_len;
@@ -490,9 +579,23 @@ char* daemon_get_response(char* req_str, int req_len)
 }
 /* }}} */
 
-/* {{{ proto INTERNAL int parse_response(return_value, response)
+/* {{{ proto array parse_response(string response) */
+PHP_FUNCTION(parse_response)
+{
+	char *response = NULL;
+	int response_len;
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &response, &response_len) == FAILURE) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: parse_response(string response)");
+		RETURN_NULL();
+	}
+
+	php_parse_response(return_value, response);
+}
+/* }}} */
+
+/* {{{ proto INTERNAL int php_parse_response(return_value, response)
  */
-int parse_response(zval* return_value, char* response) 
+int php_parse_response(zval* return_value, char* response) 
 {
 	char type;
 	char *orig_response;

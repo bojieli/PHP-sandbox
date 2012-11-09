@@ -12,6 +12,10 @@ foreach($functions as $func) {
 }
 echo "$br\n";
 
-$ret = request_daemon('sync', 'http-get', array('url'=>'http://huodong.localhost/'));
+$ret = request_daemon('sync', 'http-get', array('url'=>'http://api.wordpress.org/stats/php/1.0/'));
 var_dump($ret);
+
+var_dump(http_get('stats/php/1.0/'));
+var_dump(http_post('plugins/info/1.0/', array('action' => 'test', 'request' => 1000)));
+var_dump(install_blog_filesystem(1));
 ?>

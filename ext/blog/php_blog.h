@@ -47,15 +47,17 @@ PHP_FUNCTION(install_blog_filesystem);
 PHP_FUNCTION(install_plugin);
 PHP_FUNCTION(remove_plugin);
 PHP_FUNCTION(sendmail);
-PHP_FUNCTION(access_log);
 PHP_FUNCTION(http_get);
 PHP_FUNCTION(http_post);
+PHP_FUNCTION(parse_response);
 
+void php_access_log(int exec_time, int query_num);
 void php_request_daemon(zval* return_value, const char* method, int method_len, const char* action, int action_len, zval *data);
 char* parse_request(const char* method, int method_len, const char* action, int action_len, zval *req, int* ret_req_len);
 int parse_request_data(char* req_str, zval* req, int req_len);
 char* daemon_get_response(char* req_str, int req_len);
-int parse_response(zval* return_value, char* response);
+int php_parse_response(zval* return_value, char* response);
+int parse_post_params(zval* req, char* req_str);
 
 #define true 1
 #define false 0
