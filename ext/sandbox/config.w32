@@ -1,0 +1,13 @@
+// $Id$
+// vim:ft=javascript
+
+// If your extension references something external, use ARG_WITH
+// ARG_WITH("sandbox", "for sandbox support", "no");
+
+// Otherwise, use ARG_ENABLE
+// ARG_ENABLE("sandbox", "enable sandbox support", "no");
+
+if (PHP_SANDBOX != "no") {
+	EXTENSION("sandbox", "sandbox.c");
+}
+

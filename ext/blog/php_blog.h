@@ -12,7 +12,7 @@
   | obtain it through the world-wide-web, please send a note to          |
   | license@php.net so we can mail you a copy immediately.               |
   +----------------------------------------------------------------------+
-  | Author:                                                              |
+  | Author: Bojie Li <bojieli@gmail.com>                                 |
   +----------------------------------------------------------------------+
 */
 
@@ -42,73 +42,20 @@ PHP_RINIT_FUNCTION(blog);
 PHP_RSHUTDOWN_FUNCTION(blog);
 PHP_MINFO_FUNCTION(blog);
 
-PHP_FUNCTION(request_daemon);	
-PHP_FUNCTION(install_blog_filesystem);
-PHP_FUNCTION(install_plugin);
-PHP_FUNCTION(remove_plugin);
-PHP_FUNCTION(sendmail);
-PHP_FUNCTION(http_get);
-PHP_FUNCTION(http_post);
-PHP_FUNCTION(parse_response);
+PHP_FUNCTION(confirm_blog_compiled);	/* For testing, remove later. */
+PHP_FUNCTION(get_appinfo);
+PHP_FUNCTION(create_app);
+PHP_FUNCTION(email_activate);
 
-void php_access_log(int exec_time, int query_num);
-void php_request_daemon(zval* return_value, const char* method, int method_len, const char* action, int action_len, zval *data);
-char* parse_request(const char* method, int method_len, const char* action, int action_len, zval *req, int* ret_req_len);
-int parse_request_data(char* req_str, zval* req, int req_len);
-char* daemon_get_response(char* req_str, int req_len);
-int php_parse_response(zval* return_value, char* response);
-int parse_post_params(zval* req, char* req_str);
-
-#define true 1
-#define false 0
-
-#define DEFINE_ARRAY(data) zval* data; \
-	MAKE_STD_ZVAL(data); \
-	array_init(data)
-
-#define REQ_MAXLEN 65536
-#define REQ_APPEND(str,len) do { \
-	if (req_len + (len) >= REQ_MAXLEN) { \
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "request too long"); \
-		break; \
-	} \
-	memcpy(req_str + req_len, (str), (len)); \
-	req_len += (len); \
-} while(0)
-#define REQ_APPEND_CONST(str) REQ_APPEND((str), strlen(str))
-#define IS_KEY_CHAR(c) ((c)>='0' && (c)<='9' || (c)>='a' && (c)<='z' || (c)>='A' && (c)<='Z' || (c)=='-' || (c)=='_')
-
-#define RESPONSE_MAXLEN 512000
-
-#define ASSERT_RESPONSE_CHAR(c) do { \
-	if (*response != c) { \
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Unexpected character in daemon response 0x%x (%c expected)", *response, c); \
-		return 0; \
-	} \
-} while(0)
-#define IS_VALUE_CHAR(c) ((c)>=33 && (c)<=126 && (c)!=':')
-
-#define KEY_MAXLEN 256
-	
 /* 
   	Declare any global variables you may need between the BEGIN
 	and END macros here:     
-*/
-ZEND_BEGIN_MODULE_GLOBALS(blog)
-	char *daemon_hostname;
-	int   daemon_port;
-	char *admindb_host;
-	char *admindb_name;
-	char *admindb_user;
-	char *admindb_pass;
-	char *userdb_prefix;
-	char *chroot_basedir;
-	char *chroot_basedir_peruser;
-	char *hostname_for_subdomain;
-	char *chroot_except_subdomain;
 
-	MYSQL *admindb_conn;
+ZEND_BEGIN_MODULE_GLOBALS(blog)
+	long  global_value;
+	char *global_string;
 ZEND_END_MODULE_GLOBALS(blog)
+*/
 
 /* In every utility function you add that needs to use variables 
    in php_blog_globals, call TSRMLS_FETCH(); after declaring other 
