@@ -93,12 +93,22 @@ int parse_post_params(zval* req, char* req_str);
 /* 
   	Declare any global variables you may need between the BEGIN
 	and END macros here:     
-
-ZEND_BEGIN_MODULE_GLOBALS(blog)
-	long  global_value;
-	char *global_string;
-ZEND_END_MODULE_GLOBALS(blog)
 */
+ZEND_BEGIN_MODULE_GLOBALS(blog)
+	char *daemon_hostname;
+	int   daemon_port;
+	char *admindb_host;
+	char *admindb_name;
+	char *admindb_user;
+	char *admindb_pass;
+	char *userdb_prefix;
+	char *chroot_basedir;
+	char *chroot_basedir_peruser;
+	char *hostname_for_subdomain;
+	char *chroot_except_subdomain;
+
+	MYSQL *admindb_conn;
+ZEND_END_MODULE_GLOBALS(blog)
 
 /* In every utility function you add that needs to use variables 
    in php_blog_globals, call TSRMLS_FETCH(); after declaring other 

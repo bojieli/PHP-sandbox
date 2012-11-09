@@ -83,32 +83,45 @@ ZEND_GET_MODULE(blog)
 
 /* {{{ PHP_INI
  */
-/* Remove comments and fill if you need to have entries in php.ini
 PHP_INI_BEGIN()
-    STD_PHP_INI_ENTRY("blog.global_value",      "42", PHP_INI_ALL, OnUpdateLong, global_value, zend_blog_globals, blog_globals)
-    STD_PHP_INI_ENTRY("blog.global_string", "foobar", PHP_INI_ALL, OnUpdateString, global_string, zend_blog_globals, blog_globals)
+    STD_PHP_INI_ENTRY("blog.daemon_hostname", "127.0.0.1", PHP_INI_SYSTEM, OnUpdateString, daemon_hostname, zend_blog_globals, blog_globals)
+    STD_PHP_INI_ENTRY("blog.daemon_port", "0", PHP_INI_SYSTEM, OnUpdateLong, daemon_port, zend_blog_globals, blog_globals)
+	STD_PHP_INI_ENTRY("blog.admindb_host", "localhost", PHP_INI_SYSTEM, OnUpdateString, admindb_host, zend_blog_globals, blog_globals)
+	STD_PHP_INI_ENTRY("blog.admindb_name", "", PHP_INI_SYSTEM, OnUpdateString, admindb_name, zend_blog_globals, blog_globals)
+	STD_PHP_INI_ENTRY("blog.admindb_user", "root", PHP_INI_SYSTEM, OnUpdateString, admindb_user, zend_blog_globals, blog_globals)
+	STD_PHP_INI_ENTRY("blog.admindb_pass", "", PHP_INI_SYSTEM, OnUpdateString, admindb_pass, zend_blog_globals, blog_globals)
+	STD_PHP_INI_ENTRY("blog.userdb_prefix", "ub_", PHP_INI_SYSTEM, OnUpdateString, userdb_prefix, zend_blog_globals, blog_globals)
+	STD_PHP_INI_ENTRY("blog.chroot_basedir", "/tmp", PHP_INI_SYSTEM, OnUpdateString, chroot_basedir, zend_blog_globals, blog_globals)
+	STD_PHP_INI_ENTRY("blog.chroot_basedir_peruser", "", PHP_INI_SYSTEM, OnUpdateString, chroot_basedir_peruser, zend_blog_globals, blog_globals)
+	STD_PHP_INI_ENTRY("blog.hostname_for_subdomain", "localhost", PHP_INI_SYSTEM, OnUpdateString, hostname_for_subdomain, zend_blog_globals, blog_globals)
+	STD_PHP_INI_ENTRY("blog.chroot_except_subdomain", "", PHP_INI_SYSTEM, OnUpdateString, chroot_except_subdomain, zend_blog_globals, blog_globals)
 PHP_INI_END()
-*/
 /* }}} */
 
 /* {{{ php_blog_init_globals
  */
-/* Uncomment this function if you have INI entries
 static void php_blog_init_globals(zend_blog_globals *blog_globals)
 {
-	blog_globals->global_value = 0;
-	blog_globals->global_string = NULL;
+	blog_globals->daemon_hostname = "127.0.0.1";
+	blog_globals->daemon_port = 0;
+	blog_globals->admindb_host = "localhost";
+	blog_globals->admindb_name = "";
+	blog_globals->admindb_user = "";
+	blog_globals->admindb_pass = "";
+	blog_globals->userdb_prefix = "ub_";
+	blog_globals->chroot_basedir = "/tmp";
+	blog_globals->chroot_basedir_peruser = "";
+	blog_globals->hostname_for_subdomain = "";
+	blog_globals->chroot_except_subdomain = "";
+	blog_globals->admindb_conn = NULL;
 }
-*/
 /* }}} */
 
 /* {{{ PHP_MINIT_FUNCTION
  */
 PHP_MINIT_FUNCTION(blog)
 {
-	/* If you have INI entries, uncomment these lines 
 	REGISTER_INI_ENTRIES();
-	*/
 	return SUCCESS;
 }
 /* }}} */
@@ -117,9 +130,7 @@ PHP_MINIT_FUNCTION(blog)
  */
 PHP_MSHUTDOWN_FUNCTION(blog)
 {
-	/* uncomment this line if you have INI entries
 	UNREGISTER_INI_ENTRIES();
-	*/
 	return SUCCESS;
 }
 /* }}} */
@@ -150,9 +161,7 @@ PHP_MINFO_FUNCTION(blog)
 	php_info_print_table_header(2, "blog support", "enabled");
 	php_info_print_table_end();
 
-	/* Remove comments if you have entries in php.ini
 	DISPLAY_INI_ENTRIES();
-	*/
 }
 /* }}} */
 
@@ -275,19 +284,6 @@ PHP_FUNCTION(access_log)
 }
 /* }}} */
 
-/* {{{ proto INTERNAL void php_access_log(int exec_time, int query_num) */
-void php_access_log(int exec_time, int query_num)
-{
-	const char *method = "async";
-	const char *action = "access-log";
-	zval *return_value = NULL;
-	DEFINE_ARRAY(data);
-	add_assoc_long(data, "exec-time", exec_time);
-	add_assoc_long(data, "query-num", query_num);
-	php_request_daemon(return_value, method, strlen(method), action, strlen(action), data);
-}
-/* }}} */
-
 /* {{{ proto array http_get(string url)
 	return: {status: int, body: string} */
 PHP_FUNCTION(http_get)
@@ -338,6 +334,52 @@ PHP_FUNCTION(http_post)
 		if (body_len > 0)
 			add_assoc_stringl(data, "body", body, body_len, 0);
 	}
+	php_request_daemon(return_value, method, strlen(method), action, strlen(action), data);
+}
+/* }}} */
+
+/* {{{ proto array request_daemon(string method, string action, array data)
+   Return an array of data retrieved from daemon. */
+PHP_FUNCTION(request_daemon)
+{
+	char *method = NULL, *action = NULL;
+	int method_len, action_len;
+	zval *data = NULL;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ss|a", &method, &method_len, &action, &action_len, &data) == FAILURE) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: request_daemon(string method, string action, [array data])");
+		RETURN_NULL();
+	}
+
+	php_request_daemon(return_value, method, method_len, action, action_len, data);
+}
+/* }}} */
+
+/* {{{ proto array parse_response(string response) */
+PHP_FUNCTION(parse_response)
+{
+	char *response = NULL;
+	int response_len;
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &response, &response_len) == FAILURE) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: parse_response(string response)");
+		RETURN_NULL();
+	}
+
+	php_parse_response(return_value, response);
+}
+/* }}} */
+
+/* --- INTERNAL FUNCTIONS BELOW --- */
+
+/* {{{ proto INTERNAL void php_access_log(int exec_time, int query_num) */
+void php_access_log(int exec_time, int query_num)
+{
+	const char *method = "async";
+	const char *action = "access-log";
+	zval *return_value = NULL;
+	DEFINE_ARRAY(data);
+	add_assoc_long(data, "exec-time", exec_time);
+	add_assoc_long(data, "query-num", query_num);
 	php_request_daemon(return_value, method, strlen(method), action, strlen(action), data);
 }
 /* }}} */
@@ -398,25 +440,6 @@ die:
 	return -1;
 }
 /* }}} */
-
-/* {{{ proto array request_daemon(string method, string action, array data)
-   Return an array of data retrieved from daemon. */
-PHP_FUNCTION(request_daemon)
-{
-	char *method = NULL, *action = NULL;
-	int method_len, action_len;
-	zval *data = NULL;
-
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ss|a", &method, &method_len, &action, &action_len, &data) == FAILURE) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: request_daemon(string method, string action, [array data])");
-		RETURN_NULL();
-	}
-
-	php_request_daemon(return_value, method, method_len, action, action_len, data);
-}
-/* }}} */
-
-/* --- INTERNAL FUNCTIONS BELOW*/
 
 /* {{{ proto INTERNAL void php_request_daemon(return_value, method, method_len, action, action_len, data) */
 void php_request_daemon(zval* return_value, const char* method, int method_len, const char* action, int action_len, zval *data)
@@ -547,8 +570,9 @@ char* daemon_get_response(char* req_str, int req_len)
 	struct sockaddr_in pin;
 	struct hostent *nlp_host;
 	int sd; 
-	char *host_name = "127.0.0.1";
-	int port = 12696;
+	char *host_name = BLOG_G(daemon_hostname);
+	int port = BLOG_G(daemon_port);
+	TSRMLS_FETCH();
 	 
 	if ((nlp_host = gethostbyname(host_name)) == 0) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Cannot resolve host to daemon");
@@ -576,20 +600,6 @@ char* daemon_get_response(char* req_str, int req_len)
 	close(sd);
 
 	return buf;
-}
-/* }}} */
-
-/* {{{ proto array parse_response(string response) */
-PHP_FUNCTION(parse_response)
-{
-	char *response = NULL;
-	int response_len;
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &response, &response_len) == FAILURE) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: parse_response(string response)");
-		RETURN_NULL();
-	}
-
-	php_parse_response(return_value, response);
 }
 /* }}} */
 
