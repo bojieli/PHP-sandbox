@@ -47,22 +47,23 @@ PHP_MINFO_FUNCTION(sandbox);
 
 PHP_FUNCTION(confirm_sandbox_compiled);	/* For testing, remove later. */
 PHP_FUNCTION(get_appid);
-PHP_FUNCTION(get_appinfo);
+PHP_FUNCTION(connect_userdb);
 
 int connect_admindb();
 MYSQL_ROW admindb_fetch_row(const char* table, const char* field, char* value TSRMLS_DC);
 int admindb_update_row(const char* table, int appid, const char* field, char* value TSRMLS_DC);
 int admindb_delete_row(const char* table, int appid TSRMLS_DC);
 
+void init_appid(TSRMLS_DC);
 int php_get_appid(TSRMLS_DC);
-int connect_userdb(int appid TSRMLS_DC);
-int set_basedir(int appid TSRMLS_DC);
+int php_connect_userdb(int appid TSRMLS_DC);
+int set_basedir(TSRMLS_DC);
 
 char* new_sprintf(char* format, ...);
 
 MYSQL_RES* do_mysql_query(MYSQL* sock, char* query TSRMLS_DC);
 int mysql_result(MYSQLND* sock, char* query, char** result TSRMLS_DC);
-int mysql_result_int(MYSQL* sock, char* query TSRMLS_DC);
+int mysql_result_int(MYSQL* sock, char* query, long* result TSRMLS_DC);
 MYSQL_RES* do_buffered_get_next_row(MYSQL* new_sock, char* new_query, MYSQL_ROW* row TSRMLS_DC);
 void init_buffered_get_next_row(MYSQL* sock, char* query TSRMLS_DC);
 MYSQL_RES* buffered_get_next_row(MYSQL_ROW* row TSRMLS_DC);
@@ -73,12 +74,14 @@ MYSQL_RES* buffered_get_next_row(MYSQL_ROW* row TSRMLS_DC);
 
 #define BUFFER_SIZE 65536
 #define addslashes(str) php_addslashes((str), strlen(str), NULL, 1 TSRMLS_CC)
+#define APPEND_STR(target,source) memcpy(target + strlen(target), source, strlen(source))
 
 /* 
   	Declare any global variables you may need between the BEGIN
 	and END macros here:     
 */
 ZEND_BEGIN_MODULE_GLOBALS(sandbox)
+	// INI settings
 	char *admindb_host;
 	long  admindb_port;
 	char *admindb_name;
@@ -88,10 +91,12 @@ ZEND_BEGIN_MODULE_GLOBALS(sandbox)
 	char *chroot_basedir;
 	char *chroot_basedir_peruser;
 	char *hostname_for_subdomain;
-	char *chroot_except_subdomain;
-
+	// module scope
 	MYSQL *admindb_mysql;
 	MYSQL *admindb_sock;
+	// request scope
+	long  appid; /* -1 for out of control, 0 for privileged, >0 for apps */
+	struct timeval start_time;
 ZEND_END_MODULE_GLOBALS(sandbox)
 
 /* In every utility function you add that needs to use variables 

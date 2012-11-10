@@ -32,6 +32,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include "ext/sandbox/php_sandbox.h"
 
 ZEND_DECLARE_MODULE_GLOBALS(daemon)
 
@@ -75,6 +76,10 @@ zend_module_entry daemon_module_entry = {
 };
 /* }}} */
 
+static const zend_module_dep mysql_deps[] = {
+	ZEND_MOD_REQUIRED("sandbox")
+	ZEND_MOD_END
+};
 #ifdef COMPILE_DL_DAEMON
 ZEND_GET_MODULE(daemon)
 #endif
@@ -350,8 +355,8 @@ PHP_FUNCTION(parse_response)
 
 /* --- INTERNAL FUNCTIONS BELOW --- */
 
-/* {{{ proto INTERNAL void php_access_log(int exec_time, int query_num) */
-void php_access_log(int exec_time, int query_num)
+/* {{{ proto INTERNAL void php_access_log(long exec_time, long query_num) */
+void php_access_log(long exec_time, long query_num)
 {
 	const char *method = "async";
 	const char *action = "access-log";
@@ -474,7 +479,8 @@ char* parse_request(const char* method, int method_len, const char* action, int 
 	REQ_APPEND(action, action_len);
 	REQ_APPEND_CONST("\n");
 	REQ_APPEND_CONST("appid:p:");
-	REQ_APPEND_CONST("0"); // for testing
+	char *appid = new_sprintf("%s", php_get_appid());
+	REQ_APPEND(appid, strlen(appid));
 	REQ_APPEND_CONST("\n\n");
 
 	if (req) {
