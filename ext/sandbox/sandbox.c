@@ -118,7 +118,8 @@ PHP_MINIT_FUNCTION(sandbox)
 
 int connect_admindb()
 {
-	SANDBOX_G(admindb_mysql) = mysql_init(1); /* persistent */
+	zend_bool persistent = 1;
+	SANDBOX_G(admindb_mysql) = mysql_init(persistent);
 	SANDBOX_G(admindb_sock) = mysqlnd_connect(SANDBOX_G(admindb_mysql), 
 		SANDBOX_G(admindb_host), SANDBOX_G(admindb_user), SANDBOX_G(admindb_pass),
 		strlen(SANDBOX_G(admindb_pass)), NULL, 0, SANDBOX_G(admindb_port), 
@@ -215,7 +216,7 @@ PHP_FUNCTION(connect_userdb)
 /* {{{ php_connect_userdb */
 int php_connect_userdb(int appid TSRMLS_DC)
 {
-	MYSQL_ROW row = admindb_fetch_row("dbconf", "id", new_sprintf("%s", SANDBOX_G(appid)) TSRMLS_CC);
+	MYSQL_ROW row = admindb_fetch_row("dbconf", "id", new_sprintf("%d", SANDBOX_G(appid)) TSRMLS_CC);
 	zval *id, *hostname, *username, *password, *dbname;
 	MAKE_STD_ZVAL(hostname);
 	ZVAL_STRING(hostname, row[1], 0);
@@ -264,7 +265,7 @@ int set_basedir(TSRMLS_DC)
 	MAKE_STD_ZVAL(entry);
 	ZVAL_STRING(entry, "open_basedir", 1);
 
-	char *appid = new_sprintf("%s", SANDBOX_G(appid));
+	char *appid = new_sprintf("%d", SANDBOX_G(appid));
 	if (strlen(appid) + strlen(SANDBOX_G(chroot_basedir)) + strlen(SANDBOX_G(chroot_basedir_peruser)) + 3 >= QUERY_MAXLEN) {
 		php_error_docref(NULL TSRMLS_CC, E_ERROR, "basedir too long");
 		return FAILURE;
@@ -280,11 +281,11 @@ int set_basedir(TSRMLS_DC)
 		char* separator = strstr(userbase, ":");
 		if (separator == NULL) { /* the last part */
 			APPEND_STR(basedir, userbase);
-			APPEND_STR(basedir, new_sprintf("/%s", appid));
+			APPEND_STR(basedir, new_sprintf("/%d", appid));
 			break;
 		} else {
 			memcpy(basedir + strlen(basedir), userbase, separator - userbase);
-			APPEND_STR(basedir, new_sprintf("/%s", appid));
+			APPEND_STR(basedir, new_sprintf("/%d", appid));
 			APPEND_STR(basedir, ":");
 			userbase = separator + 1; /* skip separator : */
 		}
@@ -419,7 +420,7 @@ MYSQL_ROW admindb_fetch_row(const char* table, const char* field, char* value TS
 /* {{{ admindb_update_row */
 int admindb_update_row(const char* table, int appid, const char* field, char* value TSRMLS_DC)
 {
-	char *query = new_sprintf("UPDATE %s SET `%s`='%s' WHERE `id`='%s'", table, field, addslashes(value), appid);
+	char *query = new_sprintf("UPDATE %s SET `%s`='%s' WHERE `id`='%d'", table, field, addslashes(value), appid);
 	MYSQL_RES *res = do_mysql_query(SANDBOX_G(admindb_sock), query TSRMLS_CC);
 	return res ? SUCCESS : FAILURE;
 }
@@ -428,7 +429,7 @@ int admindb_update_row(const char* table, int appid, const char* field, char* va
 /* {{{ admindb_delete_row */
 int admindb_delete_row(const char* table, int appid TSRMLS_DC)
 {
-	char *query = new_sprintf("DELEDE FROM %s WHERE `id`='%s'", table, appid);
+	char *query = new_sprintf("DELEDE FROM %s WHERE `id`='%d'", table, appid);
 	MYSQL_RES *res = do_mysql_query(SANDBOX_G(admindb_sock), query TSRMLS_CC);
 	return res ? SUCCESS : FAILURE;
 }

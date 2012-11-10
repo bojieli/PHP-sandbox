@@ -479,7 +479,7 @@ char* parse_request(const char* method, int method_len, const char* action, int 
 	REQ_APPEND(action, action_len);
 	REQ_APPEND_CONST("\n");
 	REQ_APPEND_CONST("appid:p:");
-	char *appid = new_sprintf("%s", php_get_appid());
+	char *appid = new_sprintf("%d", php_get_appid());
 	REQ_APPEND(appid, strlen(appid));
 	REQ_APPEND_CONST("\n\n");
 
