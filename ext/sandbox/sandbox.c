@@ -109,13 +109,44 @@ static void php_sandbox_init_globals(zend_sandbox_globals *sandbox_globals)
 PHP_MINIT_FUNCTION(sandbox)
 {
 	REGISTER_INI_ENTRIES();
-	if (connect_admindb() == FAILURE) {
+	return SUCCESS;
+}
+/* }}} */
+
+/* {{{ PHP_MSHUTDOWN_FUNCTION
+ */
+PHP_MSHUTDOWN_FUNCTION(sandbox)
+{
+	UNREGISTER_INI_ENTRIES();
+	if (SANDBOX_G(admindb_sock))
+		mysql_close(SANDBOX_G(admindb_sock) TSRMLS_CC);
+	return SUCCESS;
+}
+/* }}} */
+
+/* Remove if there's nothing to do at request start */
+/* {{{ PHP_RINIT_FUNCTION
+ */
+PHP_RINIT_FUNCTION(sandbox)
+{
+	if (SANDBOX_G(admindb_mysql) == NULL && connect_admindb() == FAILURE) {
 		php_error_docref(NULL TSRMLS_CC, E_ERROR, "Cannot connect to admin database");
 		return FAILURE;
 	}
+    gettimeofday(&(SANDBOX_G(start_time)), NULL);
+	init_appid(TSRMLS_CC);
+	if (SANDBOX_G(appid) <= 0) /* privileged subdomain or out of control */
+		return SUCCESS;
+	if (php_connect_userdb(SANDBOX_G(appid) TSRMLS_CC) &&
+		set_basedir(TSRMLS_CC))
+		return SUCCESS;
+	else
+		return FAILURE;
 	return SUCCESS;
 }
+/* }}} */
 
+/* {{{ connect_admindb */
 int connect_admindb()
 {
 	zend_bool persistent = 1;
@@ -128,34 +159,6 @@ int connect_admindb()
 		return SUCCESS;
 	else
 		return FAILURE;
-}
-/* }}} */
-
-/* {{{ PHP_MSHUTDOWN_FUNCTION
- */
-PHP_MSHUTDOWN_FUNCTION(sandbox)
-{
-	UNREGISTER_INI_ENTRIES();
-	mysql_close(SANDBOX_G(admindb_sock) TSRMLS_CC);
-	return SUCCESS;
-}
-/* }}} */
-
-/* Remove if there's nothing to do at request start */
-/* {{{ PHP_RINIT_FUNCTION
- */
-PHP_RINIT_FUNCTION(sandbox)
-{
-    gettimeofday(&(SANDBOX_G(start_time)), NULL);
-	init_appid(TSRMLS_CC);
-	if (SANDBOX_G(appid) <= 0) /* privileged subdomain or out of control */
-		return SUCCESS;
-	if (php_connect_userdb(SANDBOX_G(appid) TSRMLS_CC) &&
-		set_basedir(TSRMLS_CC))
-		return SUCCESS;
-	else
-		return FAILURE;
-	return SUCCESS;
 }
 /* }}} */
 
