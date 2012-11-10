@@ -50,12 +50,10 @@ PHP_FUNCTION(email_activate);
 /* 
   	Declare any global variables you may need between the BEGIN
 	and END macros here:     
-
-ZEND_BEGIN_MODULE_GLOBALS(blog)
-	long  global_value;
-	char *global_string;
-ZEND_END_MODULE_GLOBALS(blog)
 */
+ZEND_BEGIN_MODULE_GLOBALS(blog)
+	char *userdb_prefix;
+ZEND_END_MODULE_GLOBALS(blog)
 
 /* In every utility function you add that needs to use variables 
    in php_blog_globals, call TSRMLS_FETCH(); after declaring other 

@@ -87,7 +87,6 @@ ZEND_BEGIN_MODULE_GLOBALS(sandbox)
 	char *admindb_name;
 	char *admindb_user;
 	char *admindb_pass;
-	char *userdb_prefix;
 	char *chroot_basedir;
 	char *chroot_basedir_peruser;
 	char *hostname_for_subdomain;

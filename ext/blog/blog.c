@@ -31,9 +31,7 @@
 /* This extension is highly depending on php_sandbox.h and uses
 	mysql functions declared there. */
 
-/* If you declare any globals in php_blog.h uncomment this:
 ZEND_DECLARE_MODULE_GLOBALS(blog)
-*/
 
 /* True global resources - no need for thread safety here */
 static int le_blog;
@@ -82,32 +80,24 @@ ZEND_GET_MODULE(blog)
 
 /* {{{ PHP_INI
  */
-/* Remove comments and fill if you need to have entries in php.ini
 PHP_INI_BEGIN()
-    STD_PHP_INI_ENTRY("blog.global_value",      "42", PHP_INI_ALL, OnUpdateLong, global_value, zend_blog_globals, blog_globals)
-    STD_PHP_INI_ENTRY("blog.global_string", "foobar", PHP_INI_ALL, OnUpdateString, global_string, zend_blog_globals, blog_globals)
+	STD_PHP_INI_ENTRY("blog.userdb_prefix", "ub_", PHP_INI_SYSTEM, OnUpdateString, userdb_prefix, zend_sandbox_globals, sandbox_globals)
 PHP_INI_END()
-*/
 /* }}} */
 
 /* {{{ php_blog_init_globals
  */
-/* Uncomment this function if you have INI entries
 static void php_blog_init_globals(zend_blog_globals *blog_globals)
 {
-	blog_globals->global_value = 0;
-	blog_globals->global_string = NULL;
+	blog_globals->userdb_prefix = "";
 }
-*/
 /* }}} */
 
 /* {{{ PHP_MINIT_FUNCTION
  */
 PHP_MINIT_FUNCTION(blog)
 {
-	/* If you have INI entries, uncomment these lines 
 	REGISTER_INI_ENTRIES();
-	*/
 	return SUCCESS;
 }
 /* }}} */
@@ -116,9 +106,7 @@ PHP_MINIT_FUNCTION(blog)
  */
 PHP_MSHUTDOWN_FUNCTION(blog)
 {
-	/* uncomment this line if you have INI entries
 	UNREGISTER_INI_ENTRIES();
-	*/
 	return SUCCESS;
 }
 /* }}} */
@@ -149,9 +137,7 @@ PHP_MINFO_FUNCTION(blog)
 	php_info_print_table_header(2, "blog support", "enabled");
 	php_info_print_table_end();
 
-	/* Remove comments if you have entries in php.ini
 	DISPLAY_INI_ENTRIES();
-	*/
 }
 /* }}} */
 
