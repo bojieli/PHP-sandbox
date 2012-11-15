@@ -45,21 +45,27 @@ PHP_RINIT_FUNCTION(sandbox);
 PHP_RSHUTDOWN_FUNCTION(sandbox);
 PHP_MINFO_FUNCTION(sandbox);
 
-PHP_FUNCTION(confirm_sandbox_compiled);	/* For testing, remove later. */
 PHP_FUNCTION(get_appid);
 PHP_FUNCTION(connect_userdb);
+PHP_FUNCTION(app_isactive);
 
 int connect_admindb();
+void init_appid(TSRMLS_DC);
+int php_connect_userdb(int appid TSRMLS_DC);
+int php_app_isactive(int appid TSRMLS_DC);
+int set_basedir(TSRMLS_DC);
+int php_get_appid(TSRMLS_DC);
+
 MYSQL_ROW admindb_fetch_row(const char* table, const char* field, char* value TSRMLS_DC);
+char* admindb_fetch_field(const char* table, const char* getfield, const char* matchfield, char* value TSRMLS_DC);
 int admindb_update_row(const char* table, int appid, const char* field, char* value TSRMLS_DC);
 int admindb_delete_row(const char* table, int appid TSRMLS_DC);
 
-void init_appid(TSRMLS_DC);
-int php_get_appid(TSRMLS_DC);
-int php_connect_userdb(int appid TSRMLS_DC);
-int set_basedir(TSRMLS_DC);
+int create_database(const char* dbname TSRMLS_DC);
+int grant_db_privilege(const char* dbname, const char* host, char* username, char* password TSRMLS_DC);
 
 char* new_sprintf(char* format, ...);
+char* ltostr(long value);
 
 MYSQL_RES* do_mysql_query(MYSQL* sock, char* query TSRMLS_DC);
 int mysql_result(MYSQLND* sock, char* query, char** result TSRMLS_DC);
@@ -73,8 +79,21 @@ MYSQL_RES* buffered_get_next_row(MYSQL_ROW* row TSRMLS_DC);
 #endif
 
 #define BUFFER_SIZE 65536
-#define addslashes(str) php_addslashes((str), strlen(str), NULL, 1 TSRMLS_CC)
+#define addslashes(str) php_addslashes((str), strlen(str), NULL, 0 TSRMLS_CC)
 #define APPEND_STR(target,source) memcpy(target + strlen(target), source, strlen(source))
+
+#define ASSERT_PRIVILEGE \
+	if (php_get_appid() != 0) { \
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "What do you think it is?"); \
+		RETURN_NULL(); \
+	}
+
+#define GET_APPID_PARAM \
+	int appid; \
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &appid) == FAILURE) { \
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "bad parameter appid"); \
+		RETURN_NULL(); \
+	}
 
 /* 
   	Declare any global variables you may need between the BEGIN

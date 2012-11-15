@@ -25,11 +25,12 @@
 #include "php.h"
 #include "php_ini.h"
 #include "ext/standard/info.h"
-#include "php_sandbox.h"
+#include "ext/standard/php_string.h"
 #include "Zend/zend_list.h"
+#include <sys/time.h>
+#include "php_sandbox.h"
 #include "ext/daemon/php_daemon.h"
 #include "ext/mysql/php_mysql_structs.h"
-#include <sys/time.h>
 
 ZEND_DECLARE_MODULE_GLOBALS(sandbox)
 
@@ -41,7 +42,6 @@ static int le_sandbox;
  * Every user visible function must have an entry in sandbox_functions[].
  */
 const zend_function_entry sandbox_functions[] = {
-	PHP_FE(confirm_sandbox_compiled,	NULL)		/* For testing, remove later. */
 	PHP_FE(connect_userdb, NULL)
 	PHP_FE(get_appid, NULL)
 	PHP_FE_END	/* Must be the last line in sandbox_functions[] */
@@ -136,7 +136,8 @@ PHP_RINIT_FUNCTION(sandbox)
 	init_appid(TSRMLS_CC);
 	if (SANDBOX_G(appid) <= 0) /* privileged subdomain or out of control */
 		return SUCCESS;
-	if (php_connect_userdb(SANDBOX_G(appid) TSRMLS_CC) &&
+	if (php_app_isactive(SANDBOX_G(appid) TSRMLS_CC) &&
+		php_connect_userdb(SANDBOX_G(appid) TSRMLS_CC) &&
 		set_basedir(TSRMLS_CC))
 		return SUCCESS;
 	else
@@ -202,23 +203,34 @@ die:
 	Privileged apps only  */
 PHP_FUNCTION(connect_userdb)
 {
-	int appid;
-	if (SANDBOX_G(appid) != 0) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "no privilege to call this function");
-		RETURN_NULL();
-	}
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &appid) == FAILURE) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "bad parameters");	
-	}
+	ASSERT_PRIVILEGE
+	GET_APPID_PARAM
 	php_connect_userdb(appid);
 	RETURN_NULL();
+}
+/* }}} */
+
+/* {{{ proto int app_isactive(int appid) */
+PHP_FUNCTION(app_isactive)
+{
+	ASSERT_PRIVILEGE
+	GET_APPID_PARAM
+	RETURN_BOOL(php_app_isactive(appid TSRMLS_CC));
+}
+/* }}} */
+
+/* {{{ php_app_isactive */
+int php_app_isactive(int appid TSRMLS_DC)
+{
+	char* res = admindb_fetch_field("appinfo", "isactive", "id", ltostr(appid) TSRMLS_CC);
+	return (res && res[0] == '1');
 }
 /* }}} */
 
 /* {{{ php_connect_userdb */
 int php_connect_userdb(int appid TSRMLS_DC)
 {
-	MYSQL_ROW row = admindb_fetch_row("dbconf", "id", new_sprintf("%d", SANDBOX_G(appid)) TSRMLS_CC);
+	MYSQL_ROW row = admindb_fetch_row("dbconf", "id", ltostr(SANDBOX_G(appid)) TSRMLS_CC);
 	zval *id, *hostname, *username, *password, *dbname;
 	MAKE_STD_ZVAL(hostname);
 	ZVAL_STRING(hostname, row[1], 0);
@@ -259,6 +271,7 @@ int php_connect_userdb(int appid TSRMLS_DC)
 }
 /* }}} */
 
+/* {{{ set_basedir */
 int set_basedir(TSRMLS_DC)
 {
 	zval *func, *entry, *value;
@@ -267,7 +280,7 @@ int set_basedir(TSRMLS_DC)
 	MAKE_STD_ZVAL(entry);
 	ZVAL_STRING(entry, "open_basedir", 1);
 
-	char *appid = new_sprintf("%d", SANDBOX_G(appid));
+	char *appid = ltostr(SANDBOX_G(appid));
 	if (strlen(appid) + strlen(SANDBOX_G(chroot_basedir)) + strlen(SANDBOX_G(chroot_basedir_peruser)) + 3 >= QUERY_MAXLEN) {
 		php_error_docref(NULL TSRMLS_CC, E_ERROR, "basedir too long");
 		return FAILURE;
@@ -283,11 +296,13 @@ int set_basedir(TSRMLS_DC)
 		char* separator = strstr(userbase, ":");
 		if (separator == NULL) { /* the last part */
 			APPEND_STR(basedir, userbase);
-			APPEND_STR(basedir, new_sprintf("/%d", appid));
+			APPEND_STR(basedir, "/");
+			APPEND_STR(basedir, appid);
 			break;
 		} else {
 			memcpy(basedir + strlen(basedir), userbase, separator - userbase);
-			APPEND_STR(basedir, new_sprintf("/%d", appid));
+			APPEND_STR(basedir, "/");
+			APPEND_STR(basedir, appid);
 			APPEND_STR(basedir, ":");
 			userbase = separator + 1; /* skip separator : */
 		}
@@ -335,34 +350,6 @@ PHP_MINFO_FUNCTION(sandbox)
 }
 /* }}} */
 
-
-/* Remove the following function when you have succesfully modified config.m4
-   so that your module can be compiled into PHP, it exists only for testing
-   purposes. */
-
-/* Every user-visible function in PHP should document itself in the source */
-/* {{{ proto string confirm_sandbox_compiled(string arg)
-   Return a string to confirm that the module is compiled in */
-PHP_FUNCTION(confirm_sandbox_compiled)
-{
-	char *arg = NULL;
-	int arg_len, len;
-	char *strg;
-
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &arg, &arg_len) == FAILURE) {
-		return;
-	}
-
-	len = spprintf(&strg, 0, "Congratulations! You have successfully modified ext/%.78s/config.m4. Module %.78s is now compiled into PHP.", "sandbox", arg);
-	RETURN_STRINGL(strg, len, 0);
-}
-/* }}} */
-/* The previous line is meant for vim and emacs, so it can correctly fold and 
-   unfold functions in source code. See the corresponding marks just before 
-   function definition, where the functions purpose is also documented. Please 
-   follow this convention for the convenience of others editing your code.
-*/
-
 /* {{{ proto int get_appid */
 PHP_FUNCTION(get_appid)
 {
@@ -384,10 +371,18 @@ char* new_sprintf(char* format, ...) {
     va_list arg;
     va_start(arg, format);
     char *buf = emalloc(QUERY_MAXLEN);
-	bzero(buf, QUERY_MAXLEN);
     vsprintf(buf, format, arg);
     va_end(arg);
     return buf;
+}
+/* }}} */
+
+/* {{{ ltostr */
+char* ltostr(long value) {
+#define LONG_MAXLEN 20
+	char *buf = emalloc(LONG_MAXLEN);
+	sprintf(buf, "%ld", value);
+	return buf;
 }
 /* }}} */
 
@@ -413,9 +408,16 @@ MYSQL_ROW admindb_fetch_row(const char* table, const char* field, char* value TS
 {
 	char *query = new_sprintf("SELECT * FROM %s WHERE `%s`='%s'", table, field, addslashes(value));
     MYSQL_RES *res = do_mysql_query(SANDBOX_G(admindb_sock), query TSRMLS_CC);
-	if (res)
-    	return mysql_fetch_row(res TSRMLS_CC);
-	return NULL;
+   	return res ? mysql_fetch_row(res TSRMLS_CC) : NULL;
+}
+/* }}} */
+
+/* {{{ admindb_fetch_field */
+char* admindb_fetch_field(const char* table, const char* getfield, const char* matchfield, char* value TSRMLS_DC)
+{
+	char *query = new_sprintf("SELECT `%s` FROM %s WHERE `%s`='%s'", getfield, table, matchfield, value);
+    MYSQL_RES *res = do_mysql_query(SANDBOX_G(admindb_sock), query TSRMLS_CC);
+   	return res ? mysql_fetch_row(res TSRMLS_CC)[0] : NULL;
 }
 /* }}} */
 
@@ -432,6 +434,44 @@ int admindb_update_row(const char* table, int appid, const char* field, char* va
 int admindb_delete_row(const char* table, int appid TSRMLS_DC)
 {
 	char *query = new_sprintf("DELEDE FROM %s WHERE `id`='%d'", table, appid);
+	MYSQL_RES *res = do_mysql_query(SANDBOX_G(admindb_sock), query TSRMLS_CC);
+	return res ? SUCCESS : FAILURE;
+}
+/* }}} */
+
+/* {{{ admindb_insert_row */
+int admindb_insert_row(const char* table, int num_fields, char** fields, char** values TSRMLS_DC)
+{
+	char *query = new_sprintf("INSERT INTO %s SET ", table);
+	int i;
+	for (i=0; i<num_fields; i++) {
+		if (i>0)
+			APPEND_STR(query, ",");
+		APPEND_STR(query, "`");
+		APPEND_STR(query, addslashes(fields[i]));
+		APPEND_STR(query, "`='");
+		APPEND_STR(query, addslashes(values[i]));
+		APPEND_STR(query, "'");
+	}
+
+	MYSQL_RES *res = do_mysql_query(SANDBOX_G(admindb_sock), query TSRMLS_CC);
+	return res ? mysql_insert_id(SANDBOX_G(admindb_sock) TSRMLS_CC) : 0;
+}
+/* }}} */
+
+/* {{{ create_database */
+int create_database(const char* dbname TSRMLS_DC)
+{
+	char *query = new_sprintf("CREATE DATABASE %s", dbname);
+	MYSQL_RES *res = do_mysql_query(SANDBOX_G(admindb_sock), query TSRMLS_CC);
+	return res ? SUCCESS : FAILURE;
+}
+/* }}} */
+
+/* {{{ grant_db_privilege */
+int grant_db_privilege(const char* dbname, const char* host, char* username, char* password TSRMLS_DC)
+{
+	char* query = new_sprintf("GRANT ALL ON `%s` TO '%s'@'%s' IDENTIFIED BY '%s'", dbname, username, host, password);
 	MYSQL_RES *res = do_mysql_query(SANDBOX_G(admindb_sock), query TSRMLS_CC);
 	return res ? SUCCESS : FAILURE;
 }

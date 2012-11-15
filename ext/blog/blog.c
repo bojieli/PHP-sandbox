@@ -25,8 +25,10 @@
 #include "php.h"
 #include "php_ini.h"
 #include "ext/standard/info.h"
+#include <sys/time.h>
 #include "php_blog.h"
 #include "ext/sandbox/php_sandbox.h"
+#include "ext/standard/sha1.h"
 
 /* This extension is highly depending on php_sandbox.h and uses
 	mysql functions declared there. */
@@ -41,10 +43,10 @@ static int le_blog;
  * Every user visible function must have an entry in blog_functions[].
  */
 const zend_function_entry blog_functions[] = {
-	PHP_FE(confirm_blog_compiled,	NULL)		/* For testing, remove later. */
 	PHP_FE(get_appinfo, NULL)
 	PHP_FE(create_app, NULL)
-	PHP_FE(email_activate, NULL)
+	PHP_FE(app_activate, NULL)
+	PHP_FE(app_deactivate, NULL)
 	PHP_FE_END	/* Must be the last line in blog_functions[] */
 };
 /* }}} */
@@ -81,7 +83,7 @@ ZEND_GET_MODULE(blog)
 /* {{{ PHP_INI
  */
 PHP_INI_BEGIN()
-	STD_PHP_INI_ENTRY("blog.userdb_prefix", "ub_", PHP_INI_SYSTEM, OnUpdateString, userdb_prefix, zend_sandbox_globals, sandbox_globals)
+	STD_PHP_INI_ENTRY("blog.userdb_prefix", "ub_", PHP_INI_SYSTEM, OnUpdateString, userdb_prefix, zend_blog_globals, blog_globals)
 PHP_INI_END()
 /* }}} */
 
@@ -141,37 +143,28 @@ PHP_MINFO_FUNCTION(blog)
 }
 /* }}} */
 
-
-/* Remove the following function when you have succesfully modified config.m4
-   so that your module can be compiled into PHP, it exists only for testing
-   purposes. */
-
-/* Every user-visible function in PHP should document itself in the source */
-/* {{{ proto string confirm_blog_compiled(string arg)
-   Return a string to confirm that the module is compiled in */
-PHP_FUNCTION(confirm_blog_compiled)
-{
-	char *arg = NULL;
-	int arg_len, len;
-	char *strg;
-
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &arg, &arg_len) == FAILURE) {
-		return;
-	}
-
-	len = spprintf(&strg, 0, "Congratulations! You have successfully modified ext/%.78s/config.m4. Module %.78s is now compiled into PHP.", "blog", arg);
-	RETURN_STRINGL(strg, len, 0);
-}
-/* }}} */
-/* The previous line is meant for vim and emacs, so it can correctly fold and 
-   unfold functions in source code. See the corresponding marks just before 
-   function definition, where the functions purpose is also documented. Please 
-   follow this convention for the convenience of others editing your code.
-*/
-
-/* {{{ proto int get_appinfo */
+/* {{{ proto int get_appinfo(int appid) */
 PHP_FUNCTION(get_appinfo)
 {
+	ASSERT_PRIVILEGE
+	GET_APPID_PARAM
+
+	char **row = admindb_fetch_row("appinfo", "id", ltostr(appid));
+	if (row == NULL) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "appid %d not found", appid);
+		RETURN_NULL();
+	}
+
+	array_init(return_value);
+	add_assoc_string(return_value, "id", row[0], 0);
+	add_assoc_string(return_value, "appname", row[1], 0);
+	add_assoc_string(return_value, "username", row[2], 0);
+	add_assoc_string(return_value, "email", row[3], 0);
+	add_assoc_string(return_value, "password", row[4], 0);
+	add_assoc_string(return_value, "salt", row[5], 0);
+	add_assoc_string(return_value, "token", row[6], 0);
+	add_assoc_string(return_value, "isactive", row[7], 0);
+	add_assoc_string(return_value, "register_time", row[8], 0);
 }
 /* }}} */
 
@@ -179,12 +172,82 @@ PHP_FUNCTION(get_appinfo)
 	RETURN appid */
 PHP_FUNCTION(create_app)
 {
+	ASSERT_PRIVILEGE
+
+	char *appname = NULL, *username = NULL, *email = NULL, *password = NULL;
+	int appname_len, username_len, email_len, password_len;
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ssss", &appname, &appname_len, &username, &username_len, &email, &email_len, &password, &password_len) == FAILURE) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "bad parameters");
+		RETURN_FALSE;
+	}
+
+	char* salt = random_str_gen(40);
+	make_sha1_digest(password, new_sprintf("%s\n%s", password, salt));
+
+	char* fields[] = {"appname", "username", "email", "password", "salt", "token", "isactive", "register_time"};
+	char* values[] = {appname, username, email, password, salt,
+		random_str_gen(40),
+		"0",
+		ltostr(time(NULL))
+		};
+	long appid = admindb_insert_row("appinfo", 4, fields, values);
+	if (appid <= 0) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "failed to create app");
+		RETURN_FALSE;
+	}
+
+	char* dbname = new_sprintf("%s%d", BLOG_G(userdb_prefix), appid);
+	char* fields1[] = {"id", "hostname", "username", "password", "dbname"};
+	char* values1[] = {
+		ltostr(appid), 
+		"localhost",
+		dbname,
+		random_str_gen(40), 
+		dbname
+		};
+	admindb_insert_row("dbconf", 5, fields1, values1);
+
+	create_database(dbname);
+	grant_db_privilege(dbname, "localhost", username, password);
+	php_connect_userdb(appid);
+	RETURN_TRUE;
 }
 /* }}} */
 
-/* {{{ proto int email_activate(appid, token) */
-PHP_FUNCTION(email_activate)
+/* {{{ proto int app_activate(int appid) */
+PHP_FUNCTION(app_activate)
 {
+	ASSERT_PRIVILEGE
+	GET_APPID_PARAM
+	RETURN_BOOL(admindb_update_row("appinfo", appid, "isactive", "1"));
+}
+/* }}} */
+
+/* {{{ proto int app_deactivate(int appid) */
+PHP_FUNCTION(app_deactivate)
+{
+	ASSERT_PRIVILEGE
+	GET_APPID_PARAM
+	RETURN_BOOL(admindb_update_row("appinfo", appid, "isactive", "0"));
+}
+/* }}} */
+
+/* {{{ random_str_gen */
+char* random_str_gen(int length)
+{
+	char* pass = emalloc(length+1);
+	pass[length] = '\0';
+	int i;
+	for (i=0;i<length;i++) {
+		int t = rand() % 62;
+		if (t<10)
+			pass[i] = '0' + t;
+		else if (t<36)
+			pass[i] = 'A' + t - 10;
+		else
+			pass[i] = 'a' + t - 36;
+	}
+	return pass;
 }
 /* }}} */
 

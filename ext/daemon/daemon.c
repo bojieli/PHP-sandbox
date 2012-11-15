@@ -24,15 +24,15 @@
 
 #include "php.h"
 #include "php_ini.h"
-#include "ext/standard/info.h"
-#include "php_daemon.h"
 #include "ext/standard/base64.h"
 #include "ext/standard/url.h"
+#include "ext/standard/info.h"
+#include "ext/sandbox/php_sandbox.h"
 #include "Zend/zend_operators.h"
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-#include "ext/sandbox/php_sandbox.h"
+#include "php_daemon.h"
 
 ZEND_DECLARE_MODULE_GLOBALS(daemon)
 
@@ -149,33 +149,6 @@ PHP_MINFO_FUNCTION(daemon)
 }
 /* }}} */
 
-
-/* Remove the following function when you have succesfully modified config.m4
-   so that your module can be compiled into PHP, it exists only for testing
-   purposes. */
-
-/* Every user-visible function in PHP should document itself in the source */
-/* {{{ proto string confirm_daemon_compiled(string arg)
-   Return a string to confirm that the module is compiled in */
-PHP_FUNCTION(confirm_daemon_compiled)
-{
-	char *arg = NULL;
-	int arg_len, len;
-	char *strg;
-
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &arg, &arg_len) == FAILURE) {
-		return;
-	}
-
-	len = spprintf(&strg, 0, "Congratulations! You have successfully modified ext/%.78s/config.m4. Module %.78s is now compiled into PHP.", "daemon", arg);
-	RETURN_STRINGL(strg, len, 0);
-}
-/* }}} */
-/* The previous line is meant for vim and emacs, so it can correctly fold and 
-   unfold functions in source code. See the corresponding marks just before 
-   function definition, where the functions purpose is also documented. Please 
-   follow this convention for the convenience of others editing your code.
-*/
 
 /* {{{ proto bool install_blog_filesystem(int appid) */
 PHP_FUNCTION(install_blog_filesystem)
@@ -479,7 +452,7 @@ char* parse_request(const char* method, int method_len, const char* action, int 
 	REQ_APPEND(action, action_len);
 	REQ_APPEND_CONST("\n");
 	REQ_APPEND_CONST("appid:p:");
-	char *appid = new_sprintf("%d", php_get_appid());
+	char *appid = ltostr(php_get_appid());
 	REQ_APPEND(appid, strlen(appid));
 	REQ_APPEND_CONST("\n\n");
 

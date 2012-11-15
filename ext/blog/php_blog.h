@@ -42,10 +42,12 @@ PHP_RINIT_FUNCTION(blog);
 PHP_RSHUTDOWN_FUNCTION(blog);
 PHP_MINFO_FUNCTION(blog);
 
-PHP_FUNCTION(confirm_blog_compiled);	/* For testing, remove later. */
 PHP_FUNCTION(get_appinfo);
 PHP_FUNCTION(create_app);
-PHP_FUNCTION(email_activate);
+PHP_FUNCTION(app_activate);
+PHP_FUNCTION(app_deactivate);
+
+char* random_str_gen(int length);
 
 /* 
   	Declare any global variables you may need between the BEGIN
