@@ -105,6 +105,7 @@ static void php_sandbox_init_globals(zend_sandbox_globals *sandbox_globals)
 {
 	sandbox_globals->admindb_sock = NULL;
 	sandbox_globals->appid = 0;
+	sandbox_globals->appname = NULL;
 }
 /* }}} */
 
@@ -199,6 +200,7 @@ void init_appid(TSRMLS_DC)
 	char *subdomain = emalloc(pos - http_host + 1);
 	memcpy(subdomain, http_host, pos - http_host);
 	subdomain[pos - http_host] = '\0';
+	SANDBOX_G(appname) = subdomain;
 	if (FAILURE == mysql_result_int(SANDBOX_G(admindb_sock), new_sprintf("SELECT id FROM appinfo WHERE `appname`='%s'", addslashes(subdomain)), &(SANDBOX_G(appid)) TSRMLS_CC))
 		goto die;
 	return;
@@ -312,8 +314,8 @@ int set_basedir(TSRMLS_DC)
 	MAKE_STD_ZVAL(entry);
 	ZVAL_STRING(entry, "open_basedir", 1);
 
-	char *appid = ltostr(SANDBOX_G(appid));
-	if (strlen(appid) + strlen(SANDBOX_G(chroot_basedir)) + strlen(SANDBOX_G(chroot_basedir_peruser)) + 3 >= QUERY_MAXLEN) {
+	char *appname = SANDBOX_G(appname);
+	if (strlen(appname) + strlen(SANDBOX_G(chroot_basedir)) + strlen(SANDBOX_G(chroot_basedir_peruser)) + 3 >= QUERY_MAXLEN) {
 		php_error_docref(NULL TSRMLS_CC, E_ERROR, "basedir too long");
 		return FAILURE;
 	}
@@ -329,12 +331,12 @@ int set_basedir(TSRMLS_DC)
 		if (separator == NULL) { /* the last part */
 			APPEND_STR(basedir, userbase);
 			APPEND_STR(basedir, "/");
-			APPEND_STR(basedir, appid);
+			APPEND_STR(basedir, appname);
 			break;
 		} else {
 			memcpy(basedir + strlen(basedir), userbase, separator - userbase);
 			APPEND_STR(basedir, "/");
-			APPEND_STR(basedir, appid);
+			APPEND_STR(basedir, appname);
 			APPEND_STR(basedir, ":");
 			userbase = separator + 1; /* skip separator : */
 		}

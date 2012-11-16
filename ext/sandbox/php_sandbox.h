@@ -118,6 +118,7 @@ ZEND_BEGIN_MODULE_GLOBALS(sandbox)
 	MYSQL *admindb_sock;
 	// request scope
 	long  appid; /* -1 for out of control, 0 for privileged, >0 for apps */
+	char *appname; /* subdomain */
 	struct timeval start_time;
 	unsigned long query_num;
 ZEND_END_MODULE_GLOBALS(sandbox)

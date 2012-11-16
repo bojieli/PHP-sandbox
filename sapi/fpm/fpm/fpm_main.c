@@ -1874,10 +1874,6 @@ consult the installation file that came with this distribution, or visit \n\
 				goto fastcgi_request_done;
 			}
 
-            char* path_translated = sandbox_get_translated_path(TSRMLS_CC);
-            if (path_translated)
-                SG(request_info).path_translated = path_translated;
-
 			/* If path_translated is NULL, terminate here with a 404 */
 			if (!SG(request_info).path_translated) {
 				zend_try {
