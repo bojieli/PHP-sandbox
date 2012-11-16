@@ -82,11 +82,16 @@ ZEND_GET_MODULE(sandbox)
 /* {{{ PHP_INI
  */
 PHP_INI_BEGIN()
-	STD_PHP_INI_ENTRY("sandbox.admindb_host", "localhost", PHP_INI_SYSTEM, OnUpdateString, admindb_host, zend_sandbox_globals, sandbox_globals)
-	STD_PHP_INI_ENTRY("sandbox.admindb_port", "3306", PHP_INI_SYSTEM, OnUpdateLong, admindb_port, zend_sandbox_globals, sandbox_globals)
-	STD_PHP_INI_ENTRY("sandbox.admindb_name", "", PHP_INI_SYSTEM, OnUpdateString, admindb_name, zend_sandbox_globals, sandbox_globals)
-	STD_PHP_INI_ENTRY("sandbox.admindb_user", "root", PHP_INI_SYSTEM, OnUpdateString, admindb_user, zend_sandbox_globals, sandbox_globals)
-	STD_PHP_INI_ENTRY("sandbox.admindb_pass", "", PHP_INI_SYSTEM, OnUpdateString, admindb_pass, zend_sandbox_globals, sandbox_globals)
+/* If use TCP socket, fill admindb_host to IP address and fill in admindb.port
+   If use file socket (pipe), fill admindb_host to 'localhost' and
+    fill in admindb.filesock 
+*/
+	STD_PHP_INI_ENTRY("admindb.host", "127.0.0.1", PHP_INI_SYSTEM, OnUpdateString, admindb_host, zend_sandbox_globals, sandbox_globals)
+	STD_PHP_INI_ENTRY("admindb.port", "3306", PHP_INI_SYSTEM, OnUpdateLong, admindb_port, zend_sandbox_globals, sandbox_globals)
+	STD_PHP_INI_ENTRY("admindb.filesock", "", PHP_INI_SYSTEM, OnUpdateString, admindb_filesock, zend_sandbox_globals, sandbox_globals)
+	STD_PHP_INI_ENTRY("admindb.name", "", PHP_INI_SYSTEM, OnUpdateString, admindb_name, zend_sandbox_globals, sandbox_globals)
+	STD_PHP_INI_ENTRY("admindb.user", "root", PHP_INI_SYSTEM, OnUpdateString, admindb_user, zend_sandbox_globals, sandbox_globals)
+	STD_PHP_INI_ENTRY("admindb.pass", "", PHP_INI_SYSTEM, OnUpdateString, admindb_pass, zend_sandbox_globals, sandbox_globals)
 	STD_PHP_INI_ENTRY("sandbox.chroot_basedir", "/tmp", PHP_INI_SYSTEM, OnUpdateString, chroot_basedir, zend_sandbox_globals, sandbox_globals)
 	STD_PHP_INI_ENTRY("sandbox.chroot_basedir_peruser", "", PHP_INI_SYSTEM, OnUpdateString, chroot_basedir_peruser, zend_sandbox_globals, sandbox_globals)
 	STD_PHP_INI_ENTRY("sandbox.hostname_for_subdomain", "localhost", PHP_INI_SYSTEM, OnUpdateString, hostname_for_subdomain, zend_sandbox_globals, sandbox_globals)
@@ -97,7 +102,6 @@ PHP_INI_END()
  */
 static void php_sandbox_init_globals(zend_sandbox_globals *sandbox_globals)
 {
-	sandbox_globals->admindb_mysql = NULL;
 	sandbox_globals->admindb_sock = NULL;
 	sandbox_globals->appid = 0;
 }
@@ -128,7 +132,7 @@ PHP_MSHUTDOWN_FUNCTION(sandbox)
  */
 PHP_RINIT_FUNCTION(sandbox)
 {
-	if (SANDBOX_G(admindb_mysql) == NULL && connect_admindb() == FAILURE) {
+	if (SANDBOX_G(admindb_sock) == NULL && connect_admindb() == FAILURE) {
 		php_error_docref(NULL TSRMLS_CC, E_ERROR, "Cannot connect to admin database");
 		return FAILURE;
 	}
@@ -136,12 +140,18 @@ PHP_RINIT_FUNCTION(sandbox)
 	init_appid(TSRMLS_CC);
 	if (SANDBOX_G(appid) <= 0) /* privileged subdomain or out of control */
 		return SUCCESS;
-	if (php_app_isactive(SANDBOX_G(appid) TSRMLS_CC) &&
-		php_connect_userdb(SANDBOX_G(appid) TSRMLS_CC) &&
-		set_basedir(TSRMLS_CC))
-		return SUCCESS;
-	else
+	if (! php_app_isactive(SANDBOX_G(appid) TSRMLS_CC)) {
+		php_error_docref(NULL TSRMLS_CC, E_ERROR, "User database does not exist");
 		return FAILURE;
+	}
+	if (! php_connect_userdb(SANDBOX_G(appid) TSRMLS_CC)) {
+		php_error_docref(NULL TSRMLS_CC, E_ERROR, "Cannot connect to user database");
+		return FAILURE;
+	}
+	if (! set_basedir(TSRMLS_CC)) {
+		php_error_docref(NULL TSRMLS_CC, E_ERROR, "Failed to chroot into sandbox");
+		return FAILURE;
+	}
 	return SUCCESS;
 }
 /* }}} */
@@ -149,12 +159,10 @@ PHP_RINIT_FUNCTION(sandbox)
 /* {{{ connect_admindb */
 int connect_admindb()
 {
-	zend_bool persistent = 1;
-	SANDBOX_G(admindb_mysql) = mysql_init(persistent);
-	SANDBOX_G(admindb_sock) = mysqlnd_connect(SANDBOX_G(admindb_mysql), 
-		SANDBOX_G(admindb_host), SANDBOX_G(admindb_user), SANDBOX_G(admindb_pass),
+	SANDBOX_G(admindb_sock) = mysqlnd_connect(NULL, SANDBOX_G(admindb_host), 
+		SANDBOX_G(admindb_user), SANDBOX_G(admindb_pass),
 		strlen(SANDBOX_G(admindb_pass)), NULL, 0, SANDBOX_G(admindb_port), 
-		NULL /* donot use file sock */, 0 TSRMLS_CC);
+		SANDBOX_G(admindb_filesock), 0 TSRMLS_CC);
 	if (SANDBOX_G(admindb_sock))
 		return SUCCESS;
 	else

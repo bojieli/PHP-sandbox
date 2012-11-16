@@ -103,6 +103,7 @@ ZEND_BEGIN_MODULE_GLOBALS(sandbox)
 	// INI settings
 	char *admindb_host;
 	long  admindb_port;
+	char *admindb_filesock;
 	char *admindb_name;
 	char *admindb_user;
 	char *admindb_pass;
@@ -110,7 +111,6 @@ ZEND_BEGIN_MODULE_GLOBALS(sandbox)
 	char *chroot_basedir_peruser;
 	char *hostname_for_subdomain;
 	// module scope
-	MYSQL *admindb_mysql;
 	MYSQL *admindb_sock;
 	// request scope
 	long  appid; /* -1 for out of control, 0 for privileged, >0 for apps */
