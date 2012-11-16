@@ -56,6 +56,7 @@ int php_connect_userdb(int appid TSRMLS_DC);
 int php_app_isactive(int appid TSRMLS_DC);
 void php_set_appid(int appid TSRMLS_DC);
 int set_basedir(TSRMLS_DC);
+void sandbox_query_num_inc(TSRMLS_DC);
 int php_get_appid(TSRMLS_DC);
 
 MYSQL_ROW admindb_fetch_row(const char* table, const char* field, char* value TSRMLS_DC);
@@ -117,6 +118,7 @@ ZEND_BEGIN_MODULE_GLOBALS(sandbox)
 	// request scope
 	long  appid; /* -1 for out of control, 0 for privileged, >0 for apps */
 	struct timeval start_time;
+	unsigned long query_num;
 ZEND_END_MODULE_GLOBALS(sandbox)
 
 /* In every utility function you add that needs to use variables 

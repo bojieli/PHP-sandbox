@@ -35,6 +35,8 @@
 #include "ext/standard/php_string.h"
 #include "ext/standard/basic_functions.h"
 
+#include "ext/sandbox/php_sandbox.h"
+
 #ifdef ZEND_ENGINE_2
 # include "zend_exceptions.h"
 #else
@@ -329,6 +331,7 @@ static const zend_module_dep mysql_deps[] = {
 #if defined(MYSQL_USE_MYSQLND)
 	ZEND_MOD_REQUIRED("mysqlnd")
 #endif
+    ZEND_MOD_REQUIRED("sandbox")
 	ZEND_MOD_END
 };
 
@@ -1553,6 +1556,7 @@ static void php_mysql_do_query(INTERNAL_FUNCTION_PARAMETERS, int use_store)
    Sends an SQL query to MySQL */
 PHP_FUNCTION(mysql_query)
 {
+    sandbox_query_num_inc(TSRMLS_CC);
 	php_mysql_do_query(INTERNAL_FUNCTION_PARAM_PASSTHRU, MYSQL_STORE_RESULT);
 }
 /* }}} */

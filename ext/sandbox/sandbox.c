@@ -128,7 +128,6 @@ PHP_MSHUTDOWN_FUNCTION(sandbox)
 }
 /* }}} */
 
-/* Remove if there's nothing to do at request start */
 /* {{{ PHP_RINIT_FUNCTION
  */
 PHP_RINIT_FUNCTION(sandbox)
@@ -137,7 +136,7 @@ PHP_RINIT_FUNCTION(sandbox)
 		php_error_docref(NULL TSRMLS_CC, E_ERROR, "Cannot connect to admin database");
 		return FAILURE;
 	}
-    gettimeofday(&(SANDBOX_G(start_time)), NULL);
+	SANDBOX_G(query_num) = 0;
 	init_appid(TSRMLS_CC);
 	if (SANDBOX_G(appid) <= 0) /* privileged subdomain or out of control */
 		return SUCCESS;
@@ -153,6 +152,7 @@ PHP_RINIT_FUNCTION(sandbox)
 		php_error_docref(NULL TSRMLS_CC, E_ERROR, "Failed to chroot into sandbox");
 		return FAILURE;
 	}
+    gettimeofday(&(SANDBOX_G(start_time)), NULL);
 	return SUCCESS;
 }
 /* }}} */
@@ -352,7 +352,6 @@ int set_basedir(TSRMLS_DC)
 }
 /* }}} */
 
-/* Remove if there's nothing to do at request end */
 /* {{{ PHP_RSHUTDOWN_FUNCTION
  */
 PHP_RSHUTDOWN_FUNCTION(sandbox)
@@ -362,10 +361,15 @@ PHP_RSHUTDOWN_FUNCTION(sandbox)
     long exec_time = (long)(end.tv_sec - SANDBOX_G(start_time).tv_sec) * 1000 
 		* 1000 + end.tv_usec - SANDBOX_G(start_time).tv_usec;
 
-	long query_num = 0;
-
-	php_access_log(exec_time, query_num TSRMLS_CC);
+	php_access_log(exec_time, SANDBOX_G(query_num) TSRMLS_CC);
 	return SUCCESS;
+}
+/* }}} */
+
+/* {{{ sandbox_query_num_inc */
+void sandbox_query_num_inc(TSRMLS_DC)
+{
+	++ SANDBOX_G(query_num);
 }
 /* }}} */
 
