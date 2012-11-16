@@ -27,6 +27,7 @@
 #include "ext/standard/info.h"
 #include "ext/standard/php_string.h"
 #include "Zend/zend_list.h"
+#include "SAPI.h"
 #include <sys/time.h>
 #include "php_sandbox.h"
 #include "ext/daemon/php_daemon.h"
@@ -175,6 +176,10 @@ void init_appid(TSRMLS_DC)
 {
 	char *http_host;
 	zval **array, **token;
+
+	if (strcmp(sapi_module.name, "cli") == 0)
+		goto privileged;
+
     if (zend_hash_find(&EG(symbol_table), "_SERVER", sizeof("_SERVER"), (void **) &array) == SUCCESS &&
         Z_TYPE_PP(array) == IS_ARRAY &&
         zend_hash_find(Z_ARRVAL_PP(array), "HTTP_HOST", sizeof("HTTP_HOST"), (void **) &token) == SUCCESS

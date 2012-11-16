@@ -455,7 +455,7 @@ char* parse_request(const char* method, int method_len, const char* action, int 
 	REQ_APPEND_CONST("\n");
 	REQ_APPEND_CONST("appid:p:");
 	long appid = php_get_appid();
-	if (appid == 0) {
+	if (appid == 0 && req) {
 		appid = get_appid_from_request_data(req);
 	}
 	if (appid < 0)
@@ -483,7 +483,7 @@ die:
 long get_appid_from_request_data(zval* req)
 {
 	zval **appid = NULL;
-	if (!zend_hash_find(Z_ARRVAL_P(req), "appid", sizeof("appid"), (void *)&appid))
+	if (FAILURE == zend_hash_find(Z_ARRVAL_P(req), "appid", sizeof("appid"), (void *)&appid))
 		return 0;
 	if (Z_TYPE_PP(appid) != IS_LONG)
 		return 0;
