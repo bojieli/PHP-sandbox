@@ -235,6 +235,24 @@ int php_app_isactive(int appid TSRMLS_DC)
 }
 /* }}} */
 
+/* {{{ proto void set_appid(int appid) */
+PHP_FUNCTION(set_appid)
+{
+	ASSERT_PRIVILEGE
+	GET_APPID_PARAM
+	php_set_appid(appid TSRMLS_CC);
+	php_connect_userdb(appid TSRMLS_CC);
+	RETURN_NULL();
+}
+/* }}} */
+
+/* {{{ php_set_appid */
+void php_set_appid(int appid TSRMLS_DC)
+{
+	SANDBOX_G(appid) = appid;
+}
+/* }}} */
+
 /* {{{ php_connect_userdb */
 int php_connect_userdb(int appid TSRMLS_DC)
 {

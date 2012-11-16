@@ -48,11 +48,13 @@ PHP_MINFO_FUNCTION(sandbox);
 PHP_FUNCTION(get_appid);
 PHP_FUNCTION(connect_userdb);
 PHP_FUNCTION(app_isactive);
+PHP_FUNCTION(set_appid);
 
 int connect_admindb();
 void init_appid(TSRMLS_DC);
 int php_connect_userdb(int appid TSRMLS_DC);
 int php_app_isactive(int appid TSRMLS_DC);
+void php_set_appid(int appid TSRMLS_DC);
 int set_basedir(TSRMLS_DC);
 int php_get_appid(TSRMLS_DC);
 
