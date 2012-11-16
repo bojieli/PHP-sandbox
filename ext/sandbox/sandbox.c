@@ -247,6 +247,7 @@ PHP_FUNCTION(set_appid)
 	GET_APPID_PARAM
 	php_set_appid(appid TSRMLS_CC);
 	php_connect_userdb(appid TSRMLS_CC);
+	set_basedir();
 	RETURN_NULL();
 }
 /* }}} */
@@ -345,7 +346,7 @@ int set_basedir(TSRMLS_DC)
 	zval *ret;
 	if (call_user_function_ex(CG(function_table), NULL,
 		func, &ret, 2, params, 0, NULL TSRMLS_CC) == FAILURE) {
-		php_error_docref(NULL TSRMLS_CC, E_ERROR, "cannot set basedir");
+		php_error_docref(NULL TSRMLS_CC, E_ERROR, "failed to call open_basedir");
 		return FAILURE;
 	}
 	return SUCCESS;
