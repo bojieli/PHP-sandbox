@@ -51,8 +51,8 @@ PHP_FUNCTION(http_get);
 PHP_FUNCTION(http_post);
 PHP_FUNCTION(parse_response);
 
-void php_access_log(long exec_time, long query_num);
-void php_request_daemon(zval* return_value, const char* method, int method_len, const char* action, int action_len, zval *data);
+int php_access_log(long exec_time, long query_num);
+int php_request_daemon(zval* return_value, const char* method, int method_len, const char* action, int action_len, zval *data);
 char* parse_request(const char* method, int method_len, const char* action, int action_len, zval *req, int* ret_req_len);
 int parse_request_data(char* req_str, zval* req, int req_len);
 char* daemon_get_response(char* req_str, int req_len);

@@ -87,8 +87,8 @@ ZEND_GET_MODULE(daemon)
 /* {{{ PHP_INI
  */
 PHP_INI_BEGIN()
-    STD_PHP_INI_ENTRY("daemon.daemon_hostname", "127.0.0.1", PHP_INI_SYSTEM, OnUpdateString, daemon_hostname, zend_daemon_globals, daemon_globals)
-    STD_PHP_INI_ENTRY("daemon.daemon_port", "0", PHP_INI_SYSTEM, OnUpdateLong, daemon_port, zend_daemon_globals, daemon_globals)
+    STD_PHP_INI_ENTRY("daemon.hostname", "127.0.0.1", PHP_INI_SYSTEM, OnUpdateString, daemon_hostname, zend_daemon_globals, daemon_globals)
+    STD_PHP_INI_ENTRY("daemon.port", "0", PHP_INI_SYSTEM, OnUpdateLong, daemon_port, zend_daemon_globals, daemon_globals)
 PHP_INI_END()
 /* }}} */
 
@@ -158,13 +158,12 @@ PHP_FUNCTION(install_blog_filesystem)
 	const char *action = "install-blog-filesystem";
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &appid) == FAILURE) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: install_blog_filesystem(int appid)");
-		RETURN_BOOL(false);
+		RETURN_FALSE;
 	}
 	
 	DEFINE_ARRAY(data);
 	add_assoc_long(data, "appid", appid);
-	php_request_daemon(return_value, method, strlen(method), action, strlen(action), data);
-	RETURN_BOOL(true);
+	RETURN_BOOL(php_request_daemon(return_value, method, strlen(method), action, strlen(action), data));
 }
 /* }}} */ 
 
@@ -177,14 +176,13 @@ PHP_FUNCTION(install_plugin)
 	const char *action = "install-plugin";
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ss", &plugin, &plugin_len, &filename, &filename_len) == FAILURE) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: install_plugin(string plugin_name, string remote_filename)");
-		RETURN_BOOL(false);
+		RETURN_FALSE;
 	}
 
 	DEFINE_ARRAY(data);
 	add_assoc_stringl(data, "plugin-name", plugin, plugin_len, 0);
 	add_assoc_stringl(data, "remote-filename", filename, filename_len, 0);
-	php_request_daemon(return_value, method, strlen(method), action, strlen(action), data);
-	RETURN_BOOL(true);
+	RETURN_BOOL(php_request_daemon(return_value, method, strlen(method), action, strlen(action), data));
 }
 /* }}} */ 
 
@@ -197,13 +195,12 @@ PHP_FUNCTION(remove_plugin)
 	const char *action = "remove-plugin";
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &plugin, &plugin_len) == FAILURE) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: remove_plugin(string plugin_name)");
-		RETURN_BOOL(false);
+		RETURN_FALSE;
 	}
 
 	DEFINE_ARRAY(data);
 	add_assoc_stringl(data, "plugin-name", plugin, plugin_len, 0);
-	php_request_daemon(return_value, method, strlen(method), action, strlen(action), data);
-	RETURN_BOOL(true);
+	RETURN_BOOL(php_request_daemon(return_value, method, strlen(method), action, strlen(action), data));
 }
 /* }}} */
 
@@ -216,15 +213,14 @@ PHP_FUNCTION(sendmail)
 	const char *action = "sendmail";
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "sss", &target, &target_len, &subject, &subject_len, &content, &content_len) == FAILURE) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: sendmail(string target, string subject, string content)");
-		RETURN_BOOL(false);
+		RETURN_FALSE;
 	}
 
 	DEFINE_ARRAY(data);
 	add_assoc_stringl(data, "target", target, target_len, 0);
 	add_assoc_stringl(data, "subject", subject, subject_len, 0);
 	add_assoc_stringl(data, "content", content, content_len, 0);
-	php_request_daemon(return_value, method, strlen(method), action, strlen(action), data);
-	RETURN_BOOL(true);
+	RETURN_BOOL(php_request_daemon(return_value, method, strlen(method), action, strlen(action), data));
 }
 /* }}} */
 
@@ -234,10 +230,9 @@ PHP_FUNCTION(access_log)
 	int exec_time, query_num;
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ll", &exec_time, &query_num) == FAILURE) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: access_log(int exec_time, int query_num)");
-		RETURN_BOOL(false);
+		RETURN_FALSE;
 	}
-	php_access_log(exec_time, query_num);
-	RETURN_BOOL(true);
+	RETURN_BOOL(php_access_log(exec_time, query_num));
 }
 /* }}} */
 
@@ -328,16 +323,15 @@ PHP_FUNCTION(parse_response)
 
 /* --- INTERNAL FUNCTIONS BELOW --- */
 
-/* {{{ proto INTERNAL void php_access_log(long exec_time, long query_num) */
-void php_access_log(long exec_time, long query_num)
+/* {{{ proto INTERNAL int php_access_log(long exec_time, long query_num) */
+int php_access_log(long exec_time, long query_num)
 {
 	const char *method = "async";
 	const char *action = "access-log";
-	zval *return_value = NULL;
 	DEFINE_ARRAY(data);
 	add_assoc_long(data, "exec-time", exec_time);
 	add_assoc_long(data, "query-num", query_num);
-	php_request_daemon(return_value, method, strlen(method), action, strlen(action), data);
+	return php_request_daemon(NULL, method, strlen(method), action, strlen(action), data);
 }
 /* }}} */
 
@@ -398,8 +392,8 @@ die:
 }
 /* }}} */
 
-/* {{{ proto INTERNAL void php_request_daemon(return_value, method, method_len, action, action_len, data) */
-void php_request_daemon(zval* return_value, const char* method, int method_len, const char* action, int action_len, zval *data)
+/* {{{ proto INTERNAL int php_request_daemon(return_value, method, method_len, action, action_len, data) */
+int php_request_daemon(zval* return_value, const char* method, int method_len, const char* action, int action_len, zval *data)
 {
 	int req_len;
 	char *req_str = parse_request(method, method_len, action, action_len, data, &req_len);
@@ -418,6 +412,10 @@ void php_request_daemon(zval* return_value, const char* method, int method_len, 
 		goto die;
 	}
 
+	if (return_value == NULL) { // when it comes to access-log
+		return SUCCESS;
+	}
+
 	if (! php_parse_response(return_value, response)) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Daemon response parse failed");
 		goto die;
@@ -428,12 +426,15 @@ void php_request_daemon(zval* return_value, const char* method, int method_len, 
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Internal Error: NULL return value");
 		goto die;
 	}
-	return;
+	return SUCCESS;
 
 die:
+	if (return_value == NULL)
+		return FAILURE;
 	if (req_str)
 		efree(req_str);
 	RETURN_NULL();
+	return FAILURE;
 }
 /* }}} */
 
@@ -452,8 +453,11 @@ char* parse_request(const char* method, int method_len, const char* action, int 
 	REQ_APPEND(action, action_len);
 	REQ_APPEND_CONST("\n");
 	REQ_APPEND_CONST("appid:p:");
-	char *appid = ltostr(php_get_appid());
-	REQ_APPEND(appid, strlen(appid));
+	long appid = php_get_appid();
+	if (appid < 0)
+		appid = 0;
+	char *appid_str = ltostr(appid);
+	REQ_APPEND(appid_str, strlen(appid_str));
 	REQ_APPEND_CONST("\n\n");
 
 	if (req) {
