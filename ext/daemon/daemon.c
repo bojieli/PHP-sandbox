@@ -402,19 +402,20 @@ int php_request_daemon(zval* return_value, const char* method, int method_len, c
 
 	char *response = daemon_get_response(req_str, req_len);
 
-	if (response == NULL || *response == '\0') {
+	if (response == NULL) {
 		php_error_docref(NULL TSRMLS_CC, E_NOTICE, "Daemon returned empty response");
 		goto die;
 	}
+	if (*response == '\0') // when it comes to async requests
+		return true;
 	if (*response == '*') {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Daemon returned error: %s", response);
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Original query string: %s", req_str);
 		goto die;
 	}
 
-	if (return_value == NULL) { // when it comes to access-log
-		return SUCCESS;
-	}
+	if (return_value == NULL) // when it comes to access-log
+		return true;
 
 	if (! php_parse_response(return_value, response)) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Daemon response parse failed");
@@ -426,15 +427,15 @@ int php_request_daemon(zval* return_value, const char* method, int method_len, c
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Internal Error: NULL return value");
 		goto die;
 	}
-	return SUCCESS;
+	return true;
 
 die:
 	if (return_value == NULL)
-		return FAILURE;
+		return false;
 	if (req_str)
 		efree(req_str);
 	RETURN_NULL();
-	return FAILURE;
+	return false;
 }
 /* }}} */
 
