@@ -454,6 +454,9 @@ char* parse_request(const char* method, int method_len, const char* action, int 
 	REQ_APPEND_CONST("\n");
 	REQ_APPEND_CONST("appid:p:");
 	long appid = php_get_appid();
+	if (appid == 0) {
+		appid = get_appid_from_request_data(req);
+	}
 	if (appid < 0)
 		appid = 0;
 	char *appid_str = ltostr(appid);
@@ -472,6 +475,18 @@ die:
 	if (req_str)
 		efree(req_str);
 	return NULL;
+}
+/* }}} */
+
+/* {{{ INTERNAL get_appid_frpm_request_data */
+long get_appid_from_request_data(zval* req)
+{
+	zval **appid = NULL;
+	if (!zend_hash_find(Z_ARRVAL_P(req), "appid", sizeof("appid"), (void *)&appid))
+		return 0;
+	if (Z_TYPE_PP(appid) != IS_LONG)
+		return 0;
+	return Z_LVAL_PP(appid);	
 }
 /* }}} */
 
