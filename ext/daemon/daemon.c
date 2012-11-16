@@ -483,7 +483,7 @@ die:
 long get_appid_from_request_data(zval* req)
 {
 	zval **appid = NULL;
-	if (FAILURE == zend_hash_find(Z_ARRVAL_P(req), "appid", sizeof("appid"), (void *)&appid))
+	if (FAILURE == zend_hash_find(Z_ARRVAL_P(req), "appid", strlen("appid"), (void *)&appid))
 		return 0;
 	if (Z_TYPE_PP(appid) != IS_LONG)
 		return 0;

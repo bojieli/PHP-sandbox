@@ -180,9 +180,9 @@ void init_appid(TSRMLS_DC)
 	if (strcmp(sapi_module.name, "cli") == 0)
 		goto privileged;
 
-    if (zend_hash_find(&EG(symbol_table), "_SERVER", sizeof("_SERVER"), (void **) &array) == SUCCESS &&
+    if (zend_hash_find(&EG(symbol_table), "_SERVER", strlen("_SERVER"), (void **) &array) == SUCCESS &&
         Z_TYPE_PP(array) == IS_ARRAY &&
-        zend_hash_find(Z_ARRVAL_PP(array), "HTTP_HOST", sizeof("HTTP_HOST"), (void **) &token) == SUCCESS
+        zend_hash_find(Z_ARRVAL_PP(array), "HTTP_HOST", strlen("HTTP_HOST"), (void **) &token) == SUCCESS
     ) {
         http_host = Z_STRVAL_PP(token);
     } else {
@@ -399,6 +399,32 @@ int php_get_appid(TSRMLS_DC)
 	return SANDBOX_G(appid);
 }
 /* }}} */
+
+/* {{{ sandbox_get_translated_path */
+char* sandbox_get_translated_path(TSRMLS_DC)
+{
+	if (SANDBOX_G(appid) <= 0) // not in the scope of management
+		return NULL;
+
+	char *orig_path;
+	zval **array, **token;
+    if (zend_hash_find(&EG(symbol_table), "_SERVER", strlen("_SERVER"), (void **) &array) == SUCCESS &&
+        Z_TYPE_PP(array) == IS_ARRAY &&
+        zend_hash_find(Z_ARRVAL_PP(array), "SCRIPT_NAME", strlen("SCRIPT_NAME"), (void **) &token) == SUCCESS
+    ) {
+        orig_path = Z_STRVAL_PP(token);
+    } else {
+		php_error_docref(NULL TSRMLS_CC, E_ERROR, "Cannot determine translated path");
+		return NULL;
+	}
+	
+	int maxlen = strlen(orig_path) + 100;
+	char* path = emalloc(maxlen);
+	snprintf(path, maxlen, "%s/%d%s", SANDBOX_G(chroot_basedir_peruser), SANDBOX_G(appid), orig_path);
+	return path;
+}
+/* }}} */
+
 
 /* --- Supporting Functions --- */
 
