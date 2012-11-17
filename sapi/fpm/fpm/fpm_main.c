@@ -32,8 +32,6 @@
 #include "zend_globals.h"
 #include "zend_stream.h"
 
-#include "ext/sandbox/php_sandbox.h"
-
 #include "SAPI.h"
 
 #include <stdio.h>
