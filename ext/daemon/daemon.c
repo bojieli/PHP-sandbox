@@ -452,6 +452,7 @@ char* parse_request(const char* method, int method_len, const char* action, int 
 	REQ_APPEND_CONST("action:p:");
 	REQ_APPEND(action, action_len);
 	REQ_APPEND_CONST("\n");
+
     REQ_APPEND_CONST("appid:p:");
     long appid = php_get_appid();
     if (appid == 0 && req) {
@@ -462,11 +463,17 @@ char* parse_request(const char* method, int method_len, const char* action, int 
     char *appid_str = ltostr(appid);
     REQ_APPEND(appid_str, strlen(appid_str));
 	REQ_APPEND_CONST("\n");
+
 	REQ_APPEND_CONST("appname:b:");
 	char *appname = php_get_appname(TSRMLS_CC);
+	if (appid == 0 && req) {
+		appname = get_appname_from_request_data(req);
+	}
+	if (appname == NULL || strlen(appname) == 0)
+		appname = "0";
 	int appname_len;
 	appname = php_base64_encode(appname, strlen(appname), &appname_len);
-	REQ_APPEND(appname, strlen(appname));
+	REQ_APPEND(appname, appname_len);
 	REQ_APPEND_CONST("\n\n");
 
 	if (req) {
@@ -493,6 +500,18 @@ long get_appid_from_request_data(zval* req)
 	if (Z_TYPE_PP(appid) != IS_LONG)
 		return 0;
 	return Z_LVAL_PP(appid);	
+}
+/* }}} */
+
+/* {{{ INTERNAL get_appname_from_request_data */
+char* get_appname_from_request_data(zval* req)
+{
+	zval **appname = NULL;
+	if (FAILURE == zend_hash_find(Z_ARRVAL_P(req), "appname", strlen("appname"), (void *)&appname))
+		return 0;
+	if (Z_TYPE_PP(appname) != IS_STRING)
+		return 0;
+	return Z_STRVAL_PP(appname);
 }
 /* }}} */
 
