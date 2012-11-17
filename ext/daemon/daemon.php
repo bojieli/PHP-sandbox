@@ -12,7 +12,7 @@ foreach($functions as $func) {
 }
 echo "$br\n";
 
-var_dump(install_blog_filesystem(1));
+var_dump(install_blog_filesystem('test'));
 /*
 $ret = request_daemon('sync', 'http-get', array('url'=>'http://api.wordpress.org/stats/php/1.0/'));
 var_dump($ret);

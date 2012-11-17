@@ -470,7 +470,7 @@ char* parse_request(const char* method, int method_len, const char* action, int 
 		appname = get_appname_from_request_data(req);
 	}
 	if (appname == NULL || strlen(appname) == 0)
-		appname = "0";
+		appname = "unknown";
 	int appname_len;
 	appname = php_base64_encode(appname, strlen(appname), &appname_len);
 	REQ_APPEND(appname, appname_len);
@@ -495,7 +495,7 @@ die:
 long get_appid_from_request_data(zval* req)
 {
 	zval **appid = NULL;
-	if (FAILURE == zend_hash_find(Z_ARRVAL_P(req), "appid", strlen("appid"), (void *)&appid))
+	if (FAILURE == zend_hash_find(Z_ARRVAL_P(req), "appid", sizeof("appid"), (void *)&appid))
 		return 0;
 	if (Z_TYPE_PP(appid) != IS_LONG)
 		return 0;
@@ -507,10 +507,10 @@ long get_appid_from_request_data(zval* req)
 char* get_appname_from_request_data(zval* req)
 {
 	zval **appname = NULL;
-	if (FAILURE == zend_hash_find(Z_ARRVAL_P(req), "appname", strlen("appname"), (void *)&appname))
-		return 0;
+	if (FAILURE == zend_hash_find(Z_ARRVAL_P(req), "appname", sizeof("appname"), (void *)&appname))
+		return NULL;
 	if (Z_TYPE_PP(appname) != IS_STRING)
-		return 0;
+		return NULL;
 	return Z_STRVAL_PP(appname);
 }
 /* }}} */
