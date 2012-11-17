@@ -84,6 +84,7 @@ ZEND_GET_MODULE(blog)
  */
 PHP_INI_BEGIN()
 	STD_PHP_INI_ENTRY("blog.userdb_prefix", "ub_", PHP_INI_SYSTEM, OnUpdateString, userdb_prefix, zend_blog_globals, blog_globals)
+	STD_PHP_INI_ENTRY("blog.max_blogs_per_email", "5", PHP_INI_SYSTEM, OnUpdateLong, max_blogs_per_email, zend_blog_globals, blog_globals)
 PHP_INI_END()
 /* }}} */
 
@@ -92,6 +93,7 @@ PHP_INI_END()
 static void php_blog_init_globals(zend_blog_globals *blog_globals)
 {
 	blog_globals->userdb_prefix = "";
+	blog_globals->max_blogs_per_email = 0;
 }
 /* }}} */
 
@@ -109,24 +111,6 @@ PHP_MINIT_FUNCTION(blog)
 PHP_MSHUTDOWN_FUNCTION(blog)
 {
 	UNREGISTER_INI_ENTRIES();
-	return SUCCESS;
-}
-/* }}} */
-
-/* Remove if there's nothing to do at request start */
-/* {{{ PHP_RINIT_FUNCTION
- */
-PHP_RINIT_FUNCTION(blog)
-{
-	return SUCCESS;
-}
-/* }}} */
-
-/* Remove if there's nothing to do at request end */
-/* {{{ PHP_RSHUTDOWN_FUNCTION
- */
-PHP_RSHUTDOWN_FUNCTION(blog)
-{
 	return SUCCESS;
 }
 /* }}} */
@@ -178,6 +162,15 @@ PHP_FUNCTION(create_app)
 	int appname_len, username_len, email_len, password_len;
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ssss", &appname, &appname_len, &username, &username_len, &email, &email_len, &password, &password_len) == FAILURE) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "bad parameters");
+		RETURN_FALSE;
+	}
+
+	if (0 < admindb_row_count("appinfo", "appname", appname)) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "This appname has been taken");
+		RETURN_FALSE;
+	}
+	if (BLOG_G(max_blogs_per_email) <= admindb_row_count("appinfo", "email", email)) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Each email can register at most %d blogs", BLOG_G(max_blogs_per_email));
 		RETURN_FALSE;
 	}
 

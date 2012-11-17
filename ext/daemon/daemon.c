@@ -119,24 +119,6 @@ PHP_MSHUTDOWN_FUNCTION(daemon)
 }
 /* }}} */
 
-/* Remove if there's nothing to do at request start */
-/* {{{ PHP_RINIT_FUNCTION
- */
-PHP_RINIT_FUNCTION(daemon)
-{
-	return SUCCESS;
-}
-/* }}} */
-
-/* Remove if there's nothing to do at request end */
-/* {{{ PHP_RSHUTDOWN_FUNCTION
- */
-PHP_RSHUTDOWN_FUNCTION(daemon)
-{
-	return SUCCESS;
-}
-/* }}} */
-
 /* {{{ PHP_MINFO_FUNCTION
  */
 PHP_MINFO_FUNCTION(daemon)
@@ -150,19 +132,20 @@ PHP_MINFO_FUNCTION(daemon)
 /* }}} */
 
 
-/* {{{ proto bool install_blog_filesystem(int appid) */
+/* {{{ proto bool install_blog_filesystem(string appname) */
 PHP_FUNCTION(install_blog_filesystem)
 {
-	int appid;
+	char* appname = NULL;
+	int appname_len;
 	const char *method = "async-callback";
 	const char *action = "install-blog-filesystem";
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &appid) == FAILURE) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: install_blog_filesystem(int appid)");
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &appname, &appname_len) == FAILURE) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: install_blog_filesystem(string appname)");
 		RETURN_FALSE;
 	}
 	
 	DEFINE_ARRAY(data);
-	add_assoc_long(data, "appid", appid);
+	add_assoc_stringl(data, "appname", appname, appname_len, 0);
 	RETURN_BOOL(php_request_daemon(return_value, method, strlen(method), action, strlen(action), data));
 }
 /* }}} */ 

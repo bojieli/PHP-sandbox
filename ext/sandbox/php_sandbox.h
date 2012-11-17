@@ -64,6 +64,8 @@ MYSQL_ROW admindb_fetch_row(const char* table, const char* field, char* value TS
 char* admindb_fetch_field(const char* table, const char* getfield, const char* matchfield, char* value TSRMLS_DC);
 int admindb_update_row(const char* table, int appid, const char* field, char* value TSRMLS_DC);
 int admindb_delete_row(const char* table, int appid TSRMLS_DC);
+int admindb_insert_row(const char* table, int num_fields, char** fields, char** values TSRMLS_DC);
+long admindb_row_count(const char* table, const char* field, char* value TSRMLS_DC);
 
 int create_database(const char* dbname TSRMLS_DC);
 int grant_db_privilege(const char* dbname, const char* host, char* username, char* password TSRMLS_DC);

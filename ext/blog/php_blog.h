@@ -55,6 +55,7 @@ char* random_str_gen(int length);
 */
 ZEND_BEGIN_MODULE_GLOBALS(blog)
 	char *userdb_prefix;
+	long  max_blogs_per_email;
 ZEND_END_MODULE_GLOBALS(blog)
 
 /* In every utility function you add that needs to use variables 

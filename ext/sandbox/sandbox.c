@@ -479,7 +479,7 @@ MYSQL_ROW admindb_fetch_row(const char* table, const char* field, char* value TS
 /* {{{ admindb_fetch_field */
 char* admindb_fetch_field(const char* table, const char* getfield, const char* matchfield, char* value TSRMLS_DC)
 {
-	char *query = new_sprintf("SELECT `%s` FROM %s WHERE `%s`='%s'", getfield, table, matchfield, value);
+	char *query = new_sprintf("SELECT %s FROM %s WHERE `%s`='%s'", getfield, table, matchfield, value);
     MYSQL_RES *res = do_mysql_query(SANDBOX_G(admindb_sock), query TSRMLS_CC);
    	return res ? mysql_fetch_row(res TSRMLS_CC)[0] : NULL;
 }
@@ -520,6 +520,16 @@ int admindb_insert_row(const char* table, int num_fields, char** fields, char** 
 
 	MYSQL_RES *res = do_mysql_query(SANDBOX_G(admindb_sock), query TSRMLS_CC);
 	return res ? mysql_insert_id(SANDBOX_G(admindb_sock) TSRMLS_CC) : 0;
+}
+/* }}} */
+
+/* {{{ admindb_row_count */
+long admindb_row_count(const char* table, const char* field, char* value TSRMLS_DC)
+{
+	char* count = admindb_fetch_field(table, "COUNT(*)", field, value TSRMLS_CC);
+	if (count)
+		return atol(count);
+	return 0;
 }
 /* }}} */
 
