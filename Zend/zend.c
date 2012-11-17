@@ -1088,7 +1088,7 @@ ZEND_API void zend_error(int type, const char *format, ...) /* {{{ */
 			break;
 	}
 	if (!error_filename) {
-		error_filename = "Unknown";
+		error_filename = "PHP Internal";
 	}
 
 	va_start(args, format);

@@ -148,7 +148,8 @@ group = @php_fpm_group@
 ;                            specific port;
 ;   '/path/to/unix/socket' - to listen on a unix socket.
 ; Note: This value is mandatory.
-listen = 127.0.0.1:9000
+;listen = 127.0.0.1:9000
+listen = /usr/local/var/run/php-fpm.sock
 
 ; Set listen(2) backlog.
 ; Default Value: 128 (-1 on FreeBSD and OpenBSD)

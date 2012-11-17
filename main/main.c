@@ -754,7 +754,7 @@ PHPAPI void php_verror(const char *docref, const char *params, int type, const c
 	} else {
 		function = get_active_function_name(TSRMLS_C);
 		if (!function || !strlen(function)) {
-			function = "Unknown";
+			function = "USTC blog";
 		} else {
 			is_function = 1;
 			class_name = get_active_class_name(&space TSRMLS_CC);
