@@ -180,6 +180,7 @@ void init_appid(TSRMLS_DC)
 {
 	char *http_host;
 	zval **array, **token;
+	SANDBOX_G(appname) = "";
 
 	if (strcmp(sapi_module.name, "cli") == 0)
 		goto privileged;
