@@ -28,6 +28,7 @@
 #include "ext/standard/php_string.h"
 #include "Zend/zend_list.h"
 #include "SAPI.h"
+#include "sapi/fpm/fpm/fastcgi.h"
 #include <sys/time.h>
 #include "php_sandbox.h"
 #include "ext/daemon/php_daemon.h"
@@ -178,21 +179,22 @@ int connect_admindb()
 /* {{{ init_appid */
 void init_appid(TSRMLS_DC)
 {
-	char *http_host;
-	zval **array, **token;
 	SANDBOX_G(appname) = "";
 
 	if (strcmp(sapi_module.name, "cli") == 0)
 		goto privileged;
-
-    if (zend_hash_find(&EG(symbol_table), "_SERVER", sizeof("_SERVER"), (void **) &array) == SUCCESS &&
-        Z_TYPE_PP(array) == IS_ARRAY &&
-        zend_hash_find(Z_ARRVAL_PP(array), "HTTP_HOST", sizeof("HTTP_HOST"), (void **) &token) == SUCCESS
-    ) {
-        http_host = Z_STRVAL_PP(token);
-    } else {
+	if (strcmp(sapi_module.name, "fpm-fcgi") != 0) {
+		php_error_docref(NULL TSRMLS_CC, E_ERROR, "Unsupported SAPI module");
 		goto die;
 	}
+
+	fcgi_request *request = (fcgi_request*) SG(server_context);
+	char *http_host = fcgi_getenv(request, "HTTP_HOST", strlen("HTTP_HOST"));
+	if (http_host == NULL) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "HTTP Host does not exist in HTTP header");
+		return;
+	}
+
 	char* pos = strstr(http_host, SANDBOX_G(hostname_for_subdomain));
 	if (pos == NULL)
 		goto die;
@@ -426,14 +428,9 @@ char* sandbox_get_translated_path(TSRMLS_DC)
 	if (SANDBOX_G(appid) <= 0) // not in the scope of management
 		return NULL;
 
-	char *orig_path;
-	zval **array, **token;
-    if (zend_hash_find(&EG(symbol_table), "_SERVER", sizeof("_SERVER"), (void **) &array) == SUCCESS &&
-        Z_TYPE_PP(array) == IS_ARRAY &&
-        zend_hash_find(Z_ARRVAL_PP(array), "SCRIPT_NAME", sizeof("SCRIPT_NAME"), (void **) &token) == SUCCESS
-    ) {
-        orig_path = Z_STRVAL_PP(token);
-    } else {
+	fcgi_request *request = (fcgi_request*) SG(server_context);
+	char *orig_path = fcgi_getenv(request, "SCRIPT_NAME", strlen("SCRIPT_NAME"));
+	if (orig_path == NULL) {
 		php_error_docref(NULL TSRMLS_CC, E_ERROR, "Cannot determine translated path");
 		return NULL;
 	}
