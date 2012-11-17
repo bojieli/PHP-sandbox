@@ -97,6 +97,22 @@ static void php_blog_init_globals(zend_blog_globals *blog_globals)
 }
 /* }}} */
 
+/* {{{ PHP_RINIT_FUNCTION
+ */
+PHP_RINIT_FUNCTION(blog)
+{
+	return SUCCESS;
+}
+/* }}} */
+
+/* {{{ PHP_RSHUTDOWN_FUNCTION
+ */
+PHP_RSHUTDOWN_FUNCTION(blog)
+{
+	return SUCCESS;
+}
+/* }}} */
+
 /* {{{ PHP_MINIT_FUNCTION
  */
 PHP_MINIT_FUNCTION(blog)

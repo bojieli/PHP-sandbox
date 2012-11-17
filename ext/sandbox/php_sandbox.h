@@ -46,6 +46,7 @@ PHP_RSHUTDOWN_FUNCTION(sandbox);
 PHP_MINFO_FUNCTION(sandbox);
 
 PHP_FUNCTION(get_appid);
+PHP_FUNCTION(get_appname);
 PHP_FUNCTION(connect_userdb);
 PHP_FUNCTION(app_isactive);
 PHP_FUNCTION(set_appid);
@@ -58,6 +59,7 @@ void php_set_appid(int appid TSRMLS_DC);
 int set_basedir(TSRMLS_DC);
 void sandbox_query_num_inc(TSRMLS_DC);
 int php_get_appid(TSRMLS_DC);
+char* php_get_appname(TSRMLS_DC);
 char* sandbox_get_translated_path(TSRMLS_DC);
 
 MYSQL_ROW admindb_fetch_row(const char* table, const char* field, char* value TSRMLS_DC);

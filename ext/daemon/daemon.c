@@ -101,6 +101,22 @@ static void php_daemon_init_globals(zend_daemon_globals *daemon_globals)
 }
 /* }}} */
 
+/* {{{ PHP_RINIT_FUNCTION
+ */
+PHP_RINIT_FUNCTION(daemon)
+{
+	return SUCCESS;
+}
+/* }}} */
+
+/* {{{ PHP_RSHUTDOWN_FUNCTION
+ */
+PHP_RSHUTDOWN_FUNCTION(daemon)
+{
+	return SUCCESS;
+}
+/* }}} */
+
 /* {{{ PHP_MINIT_FUNCTION
  */
 PHP_MINIT_FUNCTION(daemon)
@@ -436,15 +452,11 @@ char* parse_request(const char* method, int method_len, const char* action, int 
 	REQ_APPEND_CONST("action:p:");
 	REQ_APPEND(action, action_len);
 	REQ_APPEND_CONST("\n");
-	REQ_APPEND_CONST("appid:p:");
-	long appid = php_get_appid();
-	if (appid == 0 && req) {
-		appid = get_appid_from_request_data(req);
-	}
-	if (appid < 0)
-		appid = 0;
-	char *appid_str = ltostr(appid);
-	REQ_APPEND(appid_str, strlen(appid_str));
+	REQ_APPEND_CONST("appname:b:");
+	char *appname = php_get_appname(TSRMLS_CC);
+	int appname_len;
+	appname = php_base64_encode(appname, strlen(appname), &appname_len);
+	REQ_APPEND(appname, strlen(appname));
 	REQ_APPEND_CONST("\n\n");
 
 	if (req) {
@@ -462,7 +474,7 @@ die:
 }
 /* }}} */
 
-/* {{{ INTERNAL get_appid_frpm_request_data */
+/* {{{ INTERNAL get_appid_from_request_data */
 long get_appid_from_request_data(zval* req)
 {
 	zval **appid = NULL;

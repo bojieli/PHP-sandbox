@@ -43,8 +43,11 @@ static int le_sandbox;
  * Every user visible function must have an entry in sandbox_functions[].
  */
 const zend_function_entry sandbox_functions[] = {
-	PHP_FE(connect_userdb, NULL)
 	PHP_FE(get_appid, NULL)
+	PHP_FE(get_appname, NULL)
+	PHP_FE(connect_userdb, NULL)
+	PHP_FE(app_isactive, NULL)
+	PHP_FE(set_appid, NULL)
 	PHP_FE_END	/* Must be the last line in sandbox_functions[] */
 };
 /* }}} */
@@ -399,6 +402,20 @@ PHP_FUNCTION(get_appid)
 int php_get_appid(TSRMLS_DC)
 {
 	return SANDBOX_G(appid);
+}
+/* }}} */
+
+/* {{{ proto string get_appname */
+PHP_FUNCTION(get_appname)
+{
+	RETURN_STRING(SANDBOX_G(appname), 1);
+}
+/* }}} */
+
+/* {{{ php_get_appname */
+char* php_get_appname(TSRMLS_DC)
+{
+	return SANDBOX_G(appname);
 }
 /* }}} */
 
