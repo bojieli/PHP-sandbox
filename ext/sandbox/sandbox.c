@@ -185,9 +185,9 @@ void init_appid(TSRMLS_DC)
 	if (strcmp(sapi_module.name, "cli") == 0)
 		goto privileged;
 
-    if (zend_hash_find(&EG(symbol_table), "_SERVER", strlen("_SERVER"), (void **) &array) == SUCCESS &&
+    if (zend_hash_find(&EG(symbol_table), "_SERVER", sizeof("_SERVER"), (void **) &array) == SUCCESS &&
         Z_TYPE_PP(array) == IS_ARRAY &&
-        zend_hash_find(Z_ARRVAL_PP(array), "HTTP_HOST", strlen("HTTP_HOST"), (void **) &token) == SUCCESS
+        zend_hash_find(Z_ARRVAL_PP(array), "HTTP_HOST", sizeof("HTTP_HOST"), (void **) &token) == SUCCESS
     ) {
         http_host = Z_STRVAL_PP(token);
     } else {
@@ -428,9 +428,9 @@ char* sandbox_get_translated_path(TSRMLS_DC)
 
 	char *orig_path;
 	zval **array, **token;
-    if (zend_hash_find(&EG(symbol_table), "_SERVER", strlen("_SERVER"), (void **) &array) == SUCCESS &&
+    if (zend_hash_find(&EG(symbol_table), "_SERVER", sizeof("_SERVER"), (void **) &array) == SUCCESS &&
         Z_TYPE_PP(array) == IS_ARRAY &&
-        zend_hash_find(Z_ARRVAL_PP(array), "SCRIPT_NAME", strlen("SCRIPT_NAME"), (void **) &token) == SUCCESS
+        zend_hash_find(Z_ARRVAL_PP(array), "SCRIPT_NAME", sizeof("SCRIPT_NAME"), (void **) &token) == SUCCESS
     ) {
         orig_path = Z_STRVAL_PP(token);
     } else {
