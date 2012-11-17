@@ -27,8 +27,13 @@
 #include "ext/standard/info.h"
 #include "ext/standard/php_string.h"
 #include "Zend/zend_list.h"
+
 #include "SAPI.h"
 #include "sapi/fpm/fpm/fastcgi.h"
+/* resolve compile error for CLI by making an empty weak ref */
+char* fcgi_getenv(fcgi_request*, const char*, int) __attribute__ ((weak,alias("__fcgi_getenv")));
+char* __fcgi_getenv(fcgi_request* x, const char* y, int z) {}
+
 #include <sys/time.h>
 #include "php_sandbox.h"
 #include "ext/daemon/php_daemon.h"
