@@ -569,6 +569,8 @@ int grant_db_privilege(const char* dbname, const char* host, char* username, cha
 /* {{{ mysql_result */
 int mysql_result(MYSQL* sock, char* query, char** result TSRMLS_DC) {
     MYSQL_RES *res = do_mysql_query(sock, query TSRMLS_CC);
+	if (res == NULL)
+		return FAILURE;
     MYSQL_ROW row = mysql_fetch_row(res TSRMLS_CC);
     int length;
     if (row[0] == NULL || !(length = strlen(row[0])))
