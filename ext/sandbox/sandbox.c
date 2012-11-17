@@ -455,6 +455,7 @@ char* new_sprintf(char* format, ...) {
     va_list arg;
     va_start(arg, format);
     char *buf = emalloc(QUERY_MAXLEN);
+	bzero(buf);
     vsprintf(buf, format, arg);
     va_end(arg);
     return buf;

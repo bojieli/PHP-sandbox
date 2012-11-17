@@ -88,7 +88,7 @@ MYSQL_RES* buffered_get_next_row(MYSQL_ROW* row TSRMLS_DC);
 
 #define BUFFER_SIZE 65536
 #define addslashes(str) php_addslashes((str), strlen(str), NULL, 0 TSRMLS_CC)
-#define APPEND_STR(target,source) memcpy(target + strlen(target), source, strlen(source))
+#define APPEND_STR(target,source) strcpy((target) + strlen(target), (source))
 
 #define ASSERT_PRIVILEGE \
 	if (php_get_appid() != 0) { \
