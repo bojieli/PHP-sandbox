@@ -180,16 +180,16 @@ PHP_FUNCTION(create_app)
 	int appname_len, username_len, email_len, password_len;
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ssss", &appname, &appname_len, &username, &username_len, &email, &email_len, &password, &password_len) == FAILURE) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "bad parameters");
-		RETURN_FALSE;
+		RETURN_NULL();
 	}
 
 	if (0 < admindb_row_count("appinfo", "appname", appname)) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "This appname has been taken");
-		RETURN_FALSE;
+		RETURN_NULL();
 	}
 	if (BLOG_G(max_blogs_per_email) <= admindb_row_count("appinfo", "email", email)) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Each email can register at most %d blogs", BLOG_G(max_blogs_per_email));
-		RETURN_FALSE;
+		RETURN_NULL();
 	}
 
 	char* salt = random_str_gen(40);
@@ -204,7 +204,7 @@ PHP_FUNCTION(create_app)
 	long appid = admindb_insert_row("appinfo", 4, fields, values);
 	if (appid <= 0) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "failed to create app");
-		RETURN_FALSE;
+		RETURN_NULL();
 	}
 
 	char* dbname = new_sprintf("%s%d", BLOG_G(userdb_prefix), appid);
@@ -221,7 +221,7 @@ PHP_FUNCTION(create_app)
 	create_database(dbname);
 	grant_db_privilege(dbname, "localhost", username, password);
 	php_connect_userdb(appid);
-	RETURN_TRUE;
+	ZVAL_LONG(return_value, appid);
 }
 /* }}} */
 
