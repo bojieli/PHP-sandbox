@@ -284,40 +284,18 @@ int php_connect_userdb(int appid TSRMLS_DC)
 	if (row == NULL)
 		return FAILURE;
 	/* This depends on the order of fields of table dbconf */
-	zval *id, *hostname, *username, *password, *dbname;
-	MAKE_STD_ZVAL(hostname);
-	ZVAL_STRING(hostname, row[1], 0);
-	MAKE_STD_ZVAL(username);
-	ZVAL_STRING(username, row[2], 0);
-	MAKE_STD_ZVAL(password);
-	ZVAL_STRING(password, row[3], 0);
-	MAKE_STD_ZVAL(dbname);
-	ZVAL_STRING(dbname, row[4], 0);
+	char *hostname = row[1],
+		 *username = row[2], 
+		 *password = row[3],
+		 *dbname   = row[4];
 
-	zval *connfunc;
-	MAKE_STD_ZVAL(connfunc);
-	ZVAL_STRING(connfunc, "mysql_connect", 1);
-
-	zval **params[3] = {&hostname, &username, &password};
-	zval *resource;
-	if (call_user_function_ex(CG(function_table), NULL,
-	    connfunc, &resource, 3, params, 0, NULL TSRMLS_CC) == FAILURE) {
+	MYSQL* conn = sandbox_mysql_do_connect(username, password, hostname, NULL);
+	if (conn == NULL) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "php_connect_userdb: connect error [appid %d]", appid);
 		return FAILURE;
 	}
-	if (Z_TYPE_P(resource) != IS_RESOURCE) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "cannot connect to user database");
-		return FAILURE;
-	}
-	
-	zval *ret;
-	zval **params1[2] = {&dbname, &resource};
-	ZVAL_STRING(connfunc, "mysql_select_db", 1);
-	if (call_user_function_ex(CG(function_table), NULL,
-	    connfunc, &ret, 2, params1, 0, NULL TSRMLS_CC) == FAILURE) {
-		return FAILURE;
-	}
-	if (Z_TYPE_P(ret) != IS_RESOURCE) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "cannot select user database");
+	if (mysql_select_db(conn, dbname) != 0) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "php_connect_userdb: select error [appid %d]", appid);
 		return FAILURE;
 	}
 	return SUCCESS;
@@ -595,7 +573,7 @@ int create_database(const char* dbname TSRMLS_DC)
 /* {{{ grant_db_privilege */
 int grant_db_privilege(const char* dbname, const char* host, char* username, char* password TSRMLS_DC)
 {
-	char* query = new_sprintf("GRANT ALL ON `%s` TO '%s'@'%s' IDENTIFIED BY '%s'", dbname, username, host, password);
+	char* query = new_sprintf("GRANT ALL ON %s.* TO '%s'@'%s' IDENTIFIED BY '%s'", dbname, username, host, password);
 	return mysql_noresult_query(SANDBOX_G(admindb_sock), query TSRMLS_CC);
 }
 /* }}} */
