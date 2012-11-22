@@ -183,11 +183,11 @@ PHP_FUNCTION(create_app)
 		RETURN_NULL();
 	}
 
-	if (0 < admindb_row_count("appinfo", "appname", appname)) {
+	if (0 < admindb_row_count("appinfo", "appname", appname TSRMLS_CC)) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "This appname has been taken");
 		RETURN_NULL();
 	}
-	if (BLOG_G(max_blogs_per_email) <= admindb_row_count("appinfo", "email", email)) {
+	if (BLOG_G(max_blogs_per_email) <= admindb_row_count("appinfo", "email", email TSRMLS_CC)) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Each email can register at most %d blogs", BLOG_G(max_blogs_per_email));
 		RETURN_NULL();
 	}
@@ -196,31 +196,34 @@ PHP_FUNCTION(create_app)
 	make_sha1_digest(password, new_sprintf("%s\n%s", password, salt));
 
 	char* fields[] = {"appname", "username", "email", "password", "salt", "token", "isactive", "register_time"};
-	char* values[] = {appname, username, email, password, salt,
-		random_str_gen(40),
-		"0",
-		ltostr(time(NULL))
-		};
-	long appid = admindb_insert_row("appinfo", 4, fields, values);
-	if (appid <= 0) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "failed to create app");
+	char* values[] = {appname, username, email, password, salt, random_str_gen(40), "0", ltostr(time(NULL))};
+	if (FAILURE == admindb_insert_row("appinfo", sizeof(fields)/sizeof(fields[0]), fields, values TSRMLS_CC)) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "failed to save appinfo");
+		RETURN_NULL();
+	}
+	long appid = admindb_insert_id(TSRMLS_CC);
+
+	char* dbname = new_sprintf("%s%d", BLOG_G(userdb_prefix), appid);
+	char* dbpass = random_str_gen(40);
+	char* fields1[] = {"id", "hostname", "username", "password", "dbname"};
+	char* values1[] = {ltostr(appid), "localhost", dbname, dbpass, dbname};
+	if (FAILURE == admindb_insert_row("dbconf", sizeof(fields1)/sizeof(fields1[0]), fields1, values1 TSRMLS_CC)) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "failed to save dbconf");
 		RETURN_NULL();
 	}
 
-	char* dbname = new_sprintf("%s%d", BLOG_G(userdb_prefix), appid);
-	char* fields1[] = {"id", "hostname", "username", "password", "dbname"};
-	char* values1[] = {
-		ltostr(appid), 
-		"localhost",
-		dbname,
-		random_str_gen(40), 
-		dbname
-		};
-	admindb_insert_row("dbconf", 5, fields1, values1);
-
-	create_database(dbname);
-	grant_db_privilege(dbname, "localhost", username, password);
-	php_connect_userdb(appid);
+	if (FAILURE == create_database(dbname TSRMLS_CC)) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "failed to create database");
+		RETURN_NULL();
+	}
+	if (FAILURE == grant_db_privilege(dbname, "localhost", dbname, dbpass TSRMLS_CC)) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "failed to grant db privilege");
+		RETURN_NULL();
+	}
+	if (FAILURE == php_connect_userdb(appid TSRMLS_CC)) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "failed to connect to user database");
+		RETURN_NULL();
+	}
 	ZVAL_LONG(return_value, appid);
 }
 /* }}} */

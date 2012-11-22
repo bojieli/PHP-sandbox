@@ -67,6 +67,7 @@ char* admindb_fetch_field(const char* table, const char* getfield, const char* m
 int admindb_update_row(const char* table, int appid, const char* field, char* value TSRMLS_DC);
 int admindb_delete_row(const char* table, int appid TSRMLS_DC);
 int admindb_insert_row(const char* table, int num_fields, char** fields, char** values TSRMLS_DC);
+long admindb_insert_id(TSRMLS_DC);
 long admindb_row_count(const char* table, const char* field, char* value TSRMLS_DC);
 long admindb_num_rows(TSRMLS_DC);
 

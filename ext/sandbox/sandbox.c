@@ -170,10 +170,13 @@ PHP_RINIT_FUNCTION(sandbox)
 /* {{{ connect_admindb */
 int connect_admindb()
 {
-	SANDBOX_G(admindb_sock) = mysqlnd_connect(NULL, SANDBOX_G(admindb_host), 
-		SANDBOX_G(admindb_user), SANDBOX_G(admindb_pass),
-		strlen(SANDBOX_G(admindb_pass)), NULL, 0, SANDBOX_G(admindb_port), 
-		SANDBOX_G(admindb_filesock), 0 TSRMLS_CC);
+	SANDBOX_G(admindb_sock) = mysqlnd_connect(NULL,
+		SANDBOX_G(admindb_host), SANDBOX_G(admindb_user), 
+		SANDBOX_G(admindb_pass), strlen(SANDBOX_G(admindb_pass)), 
+		SANDBOX_G(admindb_name), strlen(SANDBOX_G(admindb_name)),
+		SANDBOX_G(admindb_port), 
+		SANDBOX_G(admindb_filesock), 
+		0 TSRMLS_CC);
 	if (SANDBOX_G(admindb_sock))
 		return SUCCESS;
 	else
@@ -277,7 +280,10 @@ void php_set_appid(int appid TSRMLS_DC)
 /* {{{ php_connect_userdb */
 int php_connect_userdb(int appid TSRMLS_DC)
 {
-	MYSQL_ROW row = admindb_fetch_row("dbconf", "id", ltostr(SANDBOX_G(appid)) TSRMLS_CC);
+	MYSQL_ROW row = admindb_fetch_row("dbconf", "id", ltostr(appid) TSRMLS_CC);
+	if (row == NULL)
+		return FAILURE;
+	/* This depends on the order of fields of table dbconf */
 	zval *id, *hostname, *username, *password, *dbname;
 	MAKE_STD_ZVAL(hostname);
 	ZVAL_STRING(hostname, row[1], 0);
@@ -299,7 +305,7 @@ int php_connect_userdb(int appid TSRMLS_DC)
 		return FAILURE;
 	}
 	if (Z_TYPE_P(resource) != IS_RESOURCE) {
-		php_error_docref(NULL TSRMLS_CC, E_ERROR, "cannot connect to user database");
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "cannot connect to user database");
 		return FAILURE;
 	}
 	
@@ -311,7 +317,7 @@ int php_connect_userdb(int appid TSRMLS_DC)
 		return FAILURE;
 	}
 	if (Z_TYPE_P(ret) != IS_RESOURCE) {
-		php_error_docref(NULL TSRMLS_CC, E_ERROR, "cannot select user database");
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "cannot select user database");
 		return FAILURE;
 	}
 	return SUCCESS;
@@ -490,6 +496,16 @@ MYSQL_RES* do_mysql_query(MYSQL* sock, char* query TSRMLS_DC) {
 // mysql_free_result(MYSQL_RES *result);
 /* }}} */
 
+/* {{{ mysql_noresult_query */
+int mysql_noresult_query(MYSQL* sock, char* query TSRMLS_DC) {
+    if (mysql_real_query(sock, query, strlen(query) TSRMLS_CC)) {
+		php_error_docref(NULL TSRMLS_CC, E_NOTICE, "Query failed (%s)", mysql_error(sock TSRMLS_CC));
+        return FAILURE;
+    }
+	return SUCCESS;
+}
+/* }}} */
+
 /* {{{ admindb_fetch_row */
 MYSQL_ROW admindb_fetch_row(const char* table, const char* field, char* value TSRMLS_DC)
 {
@@ -512,8 +528,7 @@ char* admindb_fetch_field(const char* table, const char* getfield, const char* m
 int admindb_update_row(const char* table, int appid, const char* field, char* value TSRMLS_DC)
 {
 	char *query = new_sprintf("UPDATE %s SET `%s`='%s' WHERE `id`='%d'", table, field, addslashes(value), appid);
-	MYSQL_RES *res = do_mysql_query(SANDBOX_G(admindb_sock), query TSRMLS_CC);
-	return res ? SUCCESS : FAILURE;
+	return mysql_noresult_query(SANDBOX_G(admindb_sock), query TSRMLS_CC);
 }
 /* }}} */
 
@@ -521,8 +536,7 @@ int admindb_update_row(const char* table, int appid, const char* field, char* va
 int admindb_delete_row(const char* table, int appid TSRMLS_DC)
 {
 	char *query = new_sprintf("DELEDE FROM %s WHERE `id`='%d'", table, appid);
-	MYSQL_RES *res = do_mysql_query(SANDBOX_G(admindb_sock), query TSRMLS_CC);
-	return res ? SUCCESS : FAILURE;
+	return mysql_noresult_query(SANDBOX_G(admindb_sock), query TSRMLS_CC);
 }
 /* }}} */
 
@@ -541,8 +555,14 @@ int admindb_insert_row(const char* table, int num_fields, char** fields, char** 
 		APPEND_STR(query, "'");
 	}
 
-	MYSQL_RES *res = do_mysql_query(SANDBOX_G(admindb_sock), query TSRMLS_CC);
-	return res ? mysql_insert_id(SANDBOX_G(admindb_sock) TSRMLS_CC) : 0;
+	return mysql_noresult_query(SANDBOX_G(admindb_sock), query TSRMLS_CC);
+}
+/* }}} */
+
+/* {{{ admindb_insert_id */
+long admindb_insert_id(TSRMLS_DC)
+{
+	return mysql_insert_id(SANDBOX_G(admindb_sock));
 }
 /* }}} */
 
@@ -568,8 +588,7 @@ long admindb_num_rows(TSRMLS_DC)
 int create_database(const char* dbname TSRMLS_DC)
 {
 	char *query = new_sprintf("CREATE DATABASE %s", dbname);
-	MYSQL_RES *res = do_mysql_query(SANDBOX_G(admindb_sock), query TSRMLS_CC);
-	return res ? SUCCESS : FAILURE;
+	return mysql_noresult_query(SANDBOX_G(admindb_sock), query TSRMLS_CC);
 }
 /* }}} */
 
@@ -577,8 +596,7 @@ int create_database(const char* dbname TSRMLS_DC)
 int grant_db_privilege(const char* dbname, const char* host, char* username, char* password TSRMLS_DC)
 {
 	char* query = new_sprintf("GRANT ALL ON `%s` TO '%s'@'%s' IDENTIFIED BY '%s'", dbname, username, host, password);
-	MYSQL_RES *res = do_mysql_query(SANDBOX_G(admindb_sock), query TSRMLS_CC);
-	return res ? SUCCESS : FAILURE;
+	return mysql_noresult_query(SANDBOX_G(admindb_sock), query TSRMLS_CC);
 }
 /* }}} */
 
