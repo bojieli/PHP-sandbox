@@ -199,18 +199,20 @@ void init_appid(TSRMLS_DC)
 		php_error_docref(NULL TSRMLS_CC, E_ERROR, "HTTP Host does not exist in HTTP header");
 		return;
 	}
+	char *host = emalloc(strlen(http_host)+1);
+	strcpy(host, http_host);
 
-	char* pos = strstr(http_host, SANDBOX_G(hostname_for_subdomain));
+	char* pos = strstr(host, SANDBOX_G(hostname_for_subdomain));
 	if (pos == NULL)
 		goto die;
-	if (pos == http_host) // subdomain is empty
+	if (pos == host) // subdomain is empty
 		goto privileged;
 	
-	if (!(pos = strstr(http_host, ".")))
+	if (!(pos = strstr(host, ".")))
 		goto die;
-	char *subdomain = emalloc(pos - http_host + 1);
-	memcpy(subdomain, http_host, pos - http_host);
-	subdomain[pos - http_host] = '\0';
+	char *subdomain = emalloc(pos - host + 1);
+	memcpy(subdomain, http_host, pos - host);
+	subdomain[pos - host] = '\0';
 	SANDBOX_G(appname) = subdomain;
 	if (FAILURE == mysql_result_int(SANDBOX_G(admindb_sock), new_sprintf("SELECT id FROM appinfo WHERE `appname`='%s'", addslashes(subdomain)), &(SANDBOX_G(appid)) TSRMLS_CC))
 		goto die;
