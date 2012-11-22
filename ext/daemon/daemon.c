@@ -577,7 +577,7 @@ char* daemon_get_response(char* req_str, int req_len)
 	TSRMLS_FETCH();
 	 
 	if ((nlp_host = gethostbyname(host_name)) == 0) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Cannot resolve host to daemon");
+		php_error_docref(NULL TSRMLS_CC, E_ERROR, "Cannot resolve host to daemon");
 		return NULL;
 	}
 	 
@@ -590,7 +590,7 @@ char* daemon_get_response(char* req_str, int req_len)
 	sd = socket(AF_INET, SOCK_STREAM, 0);
 	 
 	if (connect(sd, (struct sockaddr*)&pin, sizeof(pin)) == -1){
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Cannot connect to daemon");
+		php_error_docref(NULL TSRMLS_CC, E_ERROR, "Cannot connect to daemon");
 		return NULL;
 	}
 	

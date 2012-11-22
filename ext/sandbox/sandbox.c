@@ -196,7 +196,7 @@ void init_appid(TSRMLS_DC)
 	fcgi_request *request = (fcgi_request*) SG(server_context);
 	char *http_host = fcgi_getenv(request, "HTTP_HOST", strlen("HTTP_HOST"));
 	if (http_host == NULL) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "HTTP Host does not exist in HTTP header");
+		php_error_docref(NULL TSRMLS_CC, E_ERROR, "HTTP Host does not exist in HTTP header");
 		return;
 	}
 
@@ -297,7 +297,7 @@ int php_connect_userdb(int appid TSRMLS_DC)
 		return FAILURE;
 	}
 	if (Z_TYPE_P(resource) != IS_RESOURCE) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "cannot connect to user database");
+		php_error_docref(NULL TSRMLS_CC, E_ERROR, "cannot connect to user database");
 		return FAILURE;
 	}
 	
@@ -309,7 +309,7 @@ int php_connect_userdb(int appid TSRMLS_DC)
 		return FAILURE;
 	}
 	if (Z_TYPE_P(ret) != IS_RESOURCE) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "cannot select user database");
+		php_error_docref(NULL TSRMLS_CC, E_ERROR, "cannot select user database");
 		return FAILURE;
 	}
 	return SUCCESS;
@@ -455,7 +455,7 @@ char* new_sprintf(char* format, ...) {
     va_list arg;
     va_start(arg, format);
     char *buf = emalloc(QUERY_MAXLEN);
-	bzero(buf);
+	bzero(buf, QUERY_MAXLEN);
     vsprintf(buf, format, arg);
     va_end(arg);
     return buf;
