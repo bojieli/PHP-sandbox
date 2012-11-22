@@ -250,12 +250,16 @@ PHP_FUNCTION(app_count)
 
 	char *field = NULL, *value = NULL;
 	int field_len, value_len;
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ss", &field, &field_len, &value, &value_len) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|ss", &field, &field_len, &value, &value_len) == FAILURE) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "bad parameters");
 		RETURN_NULL();
 	}
 
-	long count = admindb_row_count("appinfo", field, value);
+	long count;
+	if (field == NULL || value == NULL)
+		count = admindb_num_rows();
+	else
+		count = admindb_row_count("appinfo", field, value);
 	ZVAL_LONG(return_value, count);
 }
 /* }}} */

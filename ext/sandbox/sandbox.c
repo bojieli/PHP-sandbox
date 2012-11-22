@@ -556,6 +556,14 @@ long admindb_row_count(const char* table, const char* field, char* value TSRMLS_
 }
 /* }}} */
 
+/* {{{ admindb_num_rows */
+long admindb_num_rows(TSRMLS_DC)
+{
+    MYSQL_RES *res = do_mysql_query(SANDBOX_G(admindb_sock), "SELECT COUNT(*) FROM appinfo" TSRMLS_CC);
+   	return res ? atol(mysql_fetch_row(res TSRMLS_CC)[0]) : 0;
+}
+/* }}} */
+
 /* {{{ create_database */
 int create_database(const char* dbname TSRMLS_DC)
 {
