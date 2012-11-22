@@ -46,6 +46,8 @@ PHP_FUNCTION(get_appinfo);
 PHP_FUNCTION(create_app);
 PHP_FUNCTION(app_activate);
 PHP_FUNCTION(app_deactivate);
+PHP_FUNCTION(app_count);
+PHP_FUNCTION(check_email_count);
 
 char* random_str_gen(int length);
 

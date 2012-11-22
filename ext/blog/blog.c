@@ -47,6 +47,8 @@ const zend_function_entry blog_functions[] = {
 	PHP_FE(create_app, NULL)
 	PHP_FE(app_activate, NULL)
 	PHP_FE(app_deactivate, NULL)
+	PHP_FE(app_count, NULL)
+	PHP_FE(check_email_count, NULL)
 	PHP_FE_END	/* Must be the last line in blog_functions[] */
 };
 /* }}} */
@@ -238,6 +240,39 @@ PHP_FUNCTION(app_deactivate)
 	ASSERT_PRIVILEGE
 	GET_APPID_PARAM
 	RETURN_BOOL(admindb_update_row("appinfo", appid, "isactive", "0"));
+}
+/* }}} */
+
+/* {{{ proto int app_count(string field, string value) */
+PHP_FUNCTION(app_count)
+{
+	ASSERT_PRIVILEGE
+
+	char *field = NULL, *value = NULL;
+	int field_len, value_len;
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ss", &field, &field_len, &value, &value_len) == FAILURE) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "bad parameters");
+		RETURN_NULL();
+	}
+
+	long count = admindb_row_count("appinfo", field, value);
+	ZVAL_LONG(return_value, count);
+}
+/* }}} */
+
+/* {{{ proto bool check_email_count(string email) */
+PHP_FUNCTION(check_email_count)
+{
+	ASSERT_PRIVILEGE
+
+	char *email = NULL;
+	int email_len;
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &email, &email_len) == FAILURE) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "bad parameters");
+		RETURN_FALSE;
+	}
+
+	RETURN_BOOL(BLOG_G(max_blogs_per_email) > admindb_row_count("appinfo", "email", email));
 }
 /* }}} */
 
