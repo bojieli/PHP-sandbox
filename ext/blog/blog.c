@@ -193,11 +193,14 @@ PHP_FUNCTION(create_app)
 		RETURN_NULL();
 	}
 
-	char* salt = random_str_gen(40);
-	make_sha1_digest(password, new_sprintf("%s\n%s", password, salt));
+#define SHA1_LENGTH 40
+	char* salt = random_str_gen(SHA1_LENGTH);
+	char* salted_pass = emalloc(SHA1_LENGTH+1);
+	bzero(salted_pass, SHA1_LENGTH+1);
+	make_sha1_digest(salted_pass, new_sprintf("%s\n%s", password, salt));
 
 	char* fields[] = {"appname", "username", "email", "password", "salt", "token", "isactive", "register_time"};
-	char* values[] = {appname, username, email, password, salt, random_str_gen(40), "0", ltostr(time(NULL))};
+	char* values[] = {appname, username, email, salted_pass, salt, random_str_gen(40), "0", ltostr(time(NULL))};
 	if (FAILURE == admindb_insert_row("appinfo", sizeof(fields)/sizeof(fields[0]), fields, values TSRMLS_CC)) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "failed to save appinfo");
 		RETURN_NULL();
@@ -205,7 +208,7 @@ PHP_FUNCTION(create_app)
 	long appid = admindb_insert_id(TSRMLS_CC);
 
 	char* dbname = new_sprintf("%s%d", BLOG_G(userdb_prefix), appid);
-	char* dbpass = random_str_gen(40);
+	char* dbpass = random_str_gen(SHA1_LENGTH);
 	char* fields1[] = {"id", "hostname", "username", "password", "dbname"};
 	char* values1[] = {ltostr(appid), "localhost", dbname, dbpass, dbname};
 	if (FAILURE == admindb_insert_row("dbconf", sizeof(fields1)/sizeof(fields1[0]), fields1, values1 TSRMLS_CC)) {
