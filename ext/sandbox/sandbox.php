@@ -17,4 +17,6 @@ $appid = create_app('appname'.$rand, 'username'.$rand, 'email'.$rand, 'password1
 echo "created appid: $appid\n";
 mysql_query("CREATE TABLE test (id INT(10))");
 var_dump(get_appinfo($appid));
+
+var_dump(install_blog_filesystem('appname'.$rand));
 ?>
