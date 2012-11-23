@@ -12,6 +12,9 @@ foreach($functions as $func) {
 }
 
 echo "my appid: ".get_appid()."\n";
-echo "created appid: ".create_app('appname1', 'username1', 'email1', 'password1')."\n";
+$rand = random_string(5);
+$appid = create_app('appname'.$rand, 'username'.$rand, 'email'.$rand, 'password1');
+echo "created appid: $appid\n";
 mysql_query("CREATE TABLE test (id INT(10))");
+var_dump(get_appinfo($appid));
 ?>
