@@ -292,7 +292,7 @@ PHP_FUNCTION(random_string)
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "bad parameters");
 		RETURN_NULL();
 	}
-	ZVAL_STRING(return_value, random_str_gen(length), 0);
+	ZVAL_STRING(return_value, random_str_gen(length), 1);
 }
 /* }}} */
 
