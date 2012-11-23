@@ -48,6 +48,7 @@ const zend_function_entry blog_functions[] = {
 	PHP_FE(app_activate, NULL)
 	PHP_FE(app_deactivate, NULL)
 	PHP_FE(app_count, NULL)
+	PHP_FE(get_appid_by_field, NULL)
 	PHP_FE(check_email_count, NULL)
 	PHP_FE(random_string, NULL)
 	PHP_FE_END	/* Must be the last line in blog_functions[] */
@@ -268,6 +269,26 @@ PHP_FUNCTION(app_count)
 	else
 		count = admindb_row_count("appinfo", field, value);
 	ZVAL_LONG(return_value, count);
+}
+/* }}} */
+
+/* {{{ proto int get_appid_by_field(string field, string value) */
+PHP_FUNCTION(get_appid_by_field)
+{
+	ASSERT_PRIVILEGE
+
+	char *field = NULL, *value = NULL;
+	int field_len, value_len;
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ss", &field, &field_len, &value, &value_len) == FAILURE) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "bad parameters");
+		RETURN_NULL();
+	}
+
+	char *appid = admindb_fetch_field("appinfo", "id", field, value);
+	if (appid == NULL)
+		RETURN_FALSE;
+
+	ZVAL_LONG(return_value, atol(appid));
 }
 /* }}} */
 

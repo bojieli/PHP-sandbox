@@ -47,6 +47,7 @@ PHP_FUNCTION(create_app);
 PHP_FUNCTION(app_activate);
 PHP_FUNCTION(app_deactivate);
 PHP_FUNCTION(app_count);
+PHP_FUNCTION(get_appid_by_field);
 PHP_FUNCTION(check_email_count);
 PHP_FUNCTION(random_string);
 
