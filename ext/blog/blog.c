@@ -49,6 +49,7 @@ const zend_function_entry blog_functions[] = {
 	PHP_FE(app_deactivate, NULL)
 	PHP_FE(app_count, NULL)
 	PHP_FE(check_email_count, NULL)
+	PHP_FE(random_string, NULL)
 	PHP_FE_END	/* Must be the last line in blog_functions[] */
 };
 /* }}} */
@@ -158,15 +159,15 @@ PHP_FUNCTION(get_appinfo)
 	}
 
 	array_init(return_value);
-	add_assoc_string(return_value, "id", row[0], 0);
-	add_assoc_string(return_value, "appname", row[1], 0);
-	add_assoc_string(return_value, "username", row[2], 0);
-	add_assoc_string(return_value, "email", row[3], 0);
-	add_assoc_string(return_value, "password", row[4], 0);
-	add_assoc_string(return_value, "salt", row[5], 0);
-	add_assoc_string(return_value, "token", row[6], 0);
-	add_assoc_string(return_value, "isactive", row[7], 0);
-	add_assoc_string(return_value, "register_time", row[8], 0);
+	add_assoc_string(return_value, "id", row[0], 1);
+	add_assoc_string(return_value, "appname", row[1], 1);
+	add_assoc_string(return_value, "username", row[2], 1);
+	add_assoc_string(return_value, "email", row[3], 1);
+	add_assoc_string(return_value, "password", row[4], 1);
+	add_assoc_string(return_value, "salt", row[5], 1);
+	add_assoc_string(return_value, "token", row[6], 1);
+	add_assoc_string(return_value, "isactive", row[7], 1);
+	add_assoc_string(return_value, "register_time", row[8], 1);
 }
 /* }}} */
 
@@ -280,6 +281,18 @@ PHP_FUNCTION(check_email_count)
 	}
 
 	RETURN_BOOL(BLOG_G(max_blogs_per_email) > admindb_row_count("appinfo", "email", email));
+}
+/* }}} */
+
+/* {{{ proto string random_string(long length) */
+PHP_FUNCTION(random_string)
+{
+	long length;
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &length) == FAILURE) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "bad parameters");
+		RETURN_NULL();
+	}
+	ZVAL_STRING(return_value, random_str_gen(length), 0);
 }
 /* }}} */
 

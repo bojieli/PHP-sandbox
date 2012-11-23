@@ -123,6 +123,7 @@ static void php_sandbox_init_globals(zend_sandbox_globals *sandbox_globals)
 PHP_MINIT_FUNCTION(sandbox)
 {
 	REGISTER_INI_ENTRIES();
+	srand(time(NULL));
 	return SUCCESS;
 }
 /* }}} */
@@ -170,7 +171,8 @@ PHP_RINIT_FUNCTION(sandbox)
 /* {{{ connect_admindb */
 int connect_admindb()
 {
-	SANDBOX_G(admindb_sock) = mysqlnd_connect(NULL,
+	MYSQL *conn = mysqlnd_init(1); /* persistent */
+	SANDBOX_G(admindb_sock) = mysqlnd_connect(conn,
 		SANDBOX_G(admindb_host), SANDBOX_G(admindb_user), 
 		SANDBOX_G(admindb_pass), strlen(SANDBOX_G(admindb_pass)), 
 		SANDBOX_G(admindb_name), strlen(SANDBOX_G(admindb_name)),
@@ -585,7 +587,7 @@ int mysql_result(MYSQL* sock, char* query, char** result TSRMLS_DC) {
 		return FAILURE;
     MYSQL_ROW row = mysql_fetch_row(res TSRMLS_CC);
     int length;
-    if (row[0] == NULL || !(length = strlen(row[0])))
+    if (row == NULL || row[0] == NULL || !(length = strlen(row[0])))
         return FAILURE;
     *result = emalloc(length + 1);
     memcpy(*result, row[0], length + 1);
