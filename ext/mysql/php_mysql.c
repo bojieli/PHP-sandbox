@@ -631,8 +631,6 @@ PHP_RINIT_FUNCTION(mysql)
 		return FAILURE;
 	}
 #endif
-	MySG(default_link)=-1;
-	MySG(num_links) = MySG(num_persistent);
 	/* Reset connect error/errno on every request */
 	MySG(connect_error) = NULL;
 	MySG(connect_errno) =0;
