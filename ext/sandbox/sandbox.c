@@ -291,15 +291,17 @@ int php_connect_userdb(int appid TSRMLS_DC)
 		 *password = row[3],
 		 *dbname   = row[4];
 
-	MYSQL* conn = sandbox_mysql_do_connect(username, password, hostname, NULL);
+	MYSQL* conn = sandbox_mysql_do_connect(username, password, hostname, dbname, NULL);
 	if (conn == NULL) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "php_connect_userdb: connect error [appid %d]", appid);
 		return FAILURE;
 	}
+	/*
 	if (mysql_select_db(conn, dbname) != 0) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "php_connect_userdb: select error [appid %d]", appid);
 		return FAILURE;
 	}
+	*/
 	return SUCCESS;
 }
 /* }}} */

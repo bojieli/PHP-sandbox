@@ -428,9 +428,6 @@ static void _free_mysql_result(zend_rsrc_list_entry *rsrc TSRMLS_DC)
  */
 static void php_mysql_set_default_link(int id TSRMLS_DC)
 {
-	if (MySG(default_link) != -1) {
-		zend_list_delete(MySG(default_link));
-	}
 	MySG(default_link) = id;
 	zend_list_addref(id);
 }
@@ -720,14 +717,13 @@ PHP_MINFO_FUNCTION(mysql)
 #define MYSQL_PORT 0
 #endif
 
-MYSQL* sandbox_mysql_do_connect(char* user, char* passwd, char* host_and_port, char* socket)
+MYSQL* sandbox_mysql_do_connect(char* user, char* passwd, char* host_and_port, char* dbname, char* socket)
 {
     char *host=NULL;
-    char *hashed_details=NULL;
-    int hashed_details_length, port = MYSQL_PORT;
+    int port = MYSQL_PORT;
     long client_flags = 0;
 	php_mysql_conn *mysql=NULL;
-    zend_bool free_host=0, new_link=0;
+    zend_bool free_host=0, new_link=1;
 	long connect_timeout = MySG(connect_timeout);
 
 	socket = MySG(default_socket);
@@ -745,11 +741,10 @@ MYSQL* sandbox_mysql_do_connect(char* user, char* passwd, char* host_and_port, c
     }
 
 #ifdef CLIENT_MULTI_RESULTS
-		client_flags |= CLIENT_MULTI_RESULTS; /* compatibility with 5.2, see bug#50416 */
+	client_flags |= CLIENT_MULTI_RESULTS; /* compatibility with 5.2, see bug#50416 */
 #endif
 #ifdef CLIENT_MULTI_STATEMENTS
-		client_flags &= ~CLIENT_MULTI_STATEMENTS;   /* don't allow multi_queries via connect parameter */
-		hashed_details_length = spprintf(&hashed_details, 0, "mysql_%s_%s_%s_%ld", SAFE_STRING(host_and_port), SAFE_STRING(user), SAFE_STRING(passwd), client_flags);
+	client_flags &= ~CLIENT_MULTI_STATEMENTS;   /* don't allow multi_queries via connect parameter */
 #endif
 
 	/* We cannot use mysql_port anymore in windows, need to use
@@ -777,34 +772,8 @@ MYSQL* sandbox_mysql_do_connect(char* user, char* passwd, char* host_and_port, c
     /* non persistent below */
 	zend_rsrc_list_entry *index_ptr, new_index_ptr;
 
-	/* first we check the hash for the hashed_details key.  if it exists,
-	 * it should point us to the right offset where the actual mysql link sits.
-	 * if it doesn't, open a new mysql link, add it to the resource list,
-	 * and add a pointer to it with hashed_details as the key.
-	 */
-	if (!new_link && zend_hash_find(&EG(regular_list), hashed_details, hashed_details_length+1,(void **) &index_ptr)==SUCCESS) {
-		int type;
-		long link;
-		void *ptr;
-
-		if (Z_TYPE_P(index_ptr) != le_index_ptr) {
-            return NULL;
-		}
-		link = (long) index_ptr->ptr;
-		ptr = zend_list_find(link,&type);   /* check if the link is still there */
-		if (ptr && (type==le_link || type==le_plink)) {
-			php_mysql_set_default_link(link TSRMLS_CC);
-			efree(hashed_details);
-			MYSQL_DO_CONNECT_CLEANUP();
-	        ZEND_FETCH_RESOURCE2_NO_RETURN(mysql, php_mysql_conn *, NULL, link, "MySQL-Link", le_link, le_plink);
-            return mysql ? mysql->conn : NULL;
-		} else {
-			zend_hash_del(&EG(regular_list), hashed_details, hashed_details_length+1);
-		}
-	}
 	if (MySG(max_links) != -1 && MySG(num_links) >= MySG(max_links)) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Too many open links (%ld)", MySG(num_links));
-		efree(hashed_details);
         return NULL;
 	}
 
@@ -822,7 +791,6 @@ MYSQL* sandbox_mysql_do_connect(char* user, char* passwd, char* host_and_port, c
 	if (!mysql->conn) {
 		MySG(connect_error) = estrdup("OOM");
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "OOM");
-		efree(hashed_details);
 		efree(mysql);
         return NULL;
 	}
@@ -832,9 +800,9 @@ MYSQL* sandbox_mysql_do_connect(char* user, char* passwd, char* host_and_port, c
 	}
 
 #ifndef MYSQL_USE_MYSQLND
-	if (mysql_real_connect(mysql->conn, host, user, passwd, NULL, port, socket, client_flags)==NULL)
+	if (mysql_real_connect(mysql->conn, host, user, passwd, dbname, port, socket, client_flags)==NULL)
 #else
-	if (mysqlnd_connect(mysql->conn, host, user, passwd, strlen(passwd), NULL, 0, port, socket, client_flags TSRMLS_CC) == NULL)
+	if (mysqlnd_connect(mysql->conn, host, user, passwd, strlen(passwd), dbname, strlen(dbname), port, socket, client_flags TSRMLS_CC) == NULL)
 #endif
 	{
 		/* Populate connect error globals so that the error functions can read them */
@@ -850,11 +818,9 @@ MYSQL* sandbox_mysql_do_connect(char* user, char* passwd, char* host_and_port, c
 #ifdef MYSQL_USE_MYSQLND
 		mysqlnd_close(mysql->conn, MYSQLND_CLOSE_DISCONNECTED);
 #endif
-		efree(hashed_details);
 		efree(mysql);
         return NULL;
 	}
-	mysql_options(mysql->conn, MYSQL_OPT_LOCAL_INFILE, (char *)&MySG(allow_local_infile));
 
 	/* add it to the list */
     zval* resource;
@@ -864,14 +830,9 @@ MYSQL* sandbox_mysql_do_connect(char* user, char* passwd, char* host_and_port, c
 	/* add it to the hash */
 	new_index_ptr.ptr = (void *) Z_LVAL_P(resource);
 	Z_TYPE(new_index_ptr) = le_index_ptr;
-	if (zend_hash_update(&EG(regular_list), hashed_details, hashed_details_length+1,(void *) &new_index_ptr, sizeof(zend_rsrc_list_entry), NULL)==FAILURE) {
-		efree(hashed_details);
-        return NULL;
-	}
 	MySG(num_links)++;
-
-	efree(hashed_details);
 	php_mysql_set_default_link(Z_LVAL_P(resource) TSRMLS_CC);
+
     return mysql->conn;
 }
 
@@ -1213,6 +1174,7 @@ static void php_mysql_do_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
 static int php_mysql_get_default_link(INTERNAL_FUNCTION_PARAMETERS)
 {
 	if (MySG(default_link)==-1) { /* no link opened yet, implicitly open one */
+        php_error_docref(NULL TSRMLS_CC, E_ERROR, "cannot get default link of user database");
 		ht = 0;
 		php_mysql_do_connect(INTERNAL_FUNCTION_PARAM_PASSTHRU, 0);
 	}

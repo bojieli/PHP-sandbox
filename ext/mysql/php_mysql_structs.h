@@ -132,6 +132,6 @@ ZEND_END_MODULE_GLOBALS(mysql)
 # define MySG(v) (mysql_globals.v)
 #endif
 
-MYSQL* sandbox_mysql_do_connect(char* user, char* passwd, char* host_and_port, char* socket);
+MYSQL* sandbox_mysql_do_connect(char* user, char* passwd, char* host_and_port, char* dbname, char* socket);
 
 #endif /* PHP_MYSQL_STRUCTS_H */
