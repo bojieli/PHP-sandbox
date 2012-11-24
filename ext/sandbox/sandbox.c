@@ -155,11 +155,11 @@ PHP_RINIT_FUNCTION(sandbox)
 		php_error_docref(NULL TSRMLS_CC, E_ERROR, "User database does not exist");
 		return FAILURE;
 	}
-	if (! php_connect_userdb(SANDBOX_G(appid) TSRMLS_CC)) {
+	if (FAILURE == php_connect_userdb(SANDBOX_G(appid) TSRMLS_CC)) {
 		php_error_docref(NULL TSRMLS_CC, E_ERROR, "Cannot connect to user database");
 		return FAILURE;
 	}
-	if (! set_basedir(TSRMLS_CC)) {
+	if (FAILURE == set_basedir(TSRMLS_CC)) {
 		php_error_docref(NULL TSRMLS_CC, E_ERROR, "Failed to chroot into sandbox");
 		return FAILURE;
 	}
@@ -599,7 +599,7 @@ int mysql_result(MYSQL* sock, char* query, char** result TSRMLS_DC) {
 /* {{{ mysql_result_int */
 int mysql_result_int(MYSQL* sock, char* query, long* result TSRMLS_DC) {
     char* res;
-    if (!mysql_result(sock, query, &res TSRMLS_CC))
+    if (FAILURE == mysql_result(sock, query, &res TSRMLS_CC))
         return FAILURE;
     *result = atoi(res);
     efree(res);
