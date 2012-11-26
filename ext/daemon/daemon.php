@@ -21,4 +21,6 @@ var_dump($ret);
 var_dump(http_get('http://api.wordpress.org/stats/php/1.0/'));
 var_dump(http_post('http://api.wordpress.org/plugins/info/1.0/', array('action' => 'test', 'request' => 1000)));
 http_get('http://www.google.com/');
+$data = http_get('http://wordpress.org/extend/plugins/rss/browse/popular/');
+echo strlen($data['data']);
 ?>
