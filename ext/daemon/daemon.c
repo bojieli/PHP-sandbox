@@ -368,7 +368,7 @@ int parse_post_params(zval* req, char* req_str)
 		zend_hash_move_forward_ex(req_hash, &req_pointer)) {
 
 		if (!first) {
-			REQ_APPEND_CONST("+");
+			REQ_APPEND_CONST("&");
 		} else {
 			first = false;
 		}
