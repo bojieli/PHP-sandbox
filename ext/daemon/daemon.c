@@ -239,6 +239,11 @@ PHP_FUNCTION(access_log)
 
 /* {{{ proto array http_get(string url)
 	return: {status: int, body: string} */
+#define ASSERT_ALLOW_URL \
+	if (url != strstr(url, php_app_root_url()) && url != strstr(url, DAEMON_G(http_prefix))) { \
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "URL %s is not allowed to be accessed", url); \
+	}
+
 PHP_FUNCTION(http_get)
 {
 	char *url = NULL;
@@ -249,9 +254,7 @@ PHP_FUNCTION(http_get)
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: http_get(string url)");
 		RETURN_NULL();
 	}
-	if (url != strstr(url, php_app_root_url()) && url != strstr(url, DAEMON_G(http_prefix))) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "This URL is not allowed to be accessed");
-	}
+	ASSERT_ALLOW_URL
 
 	DEFINE_ARRAY(data);
 	add_assoc_stringl(data, "url", url, url_len, 1);
@@ -272,9 +275,7 @@ PHP_FUNCTION(http_post)
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: http_post(string url, string body)");
 		RETURN_NULL();
 	}
-	if (url != strstr(url, php_app_root_url()) && url != strstr(url, DAEMON_G(http_prefix))) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "This URL is not allowed to be accessed");
-	}
+	ASSERT_ALLOW_URL
 	
 	DEFINE_ARRAY(data);
 	add_assoc_stringl(data, "url", url, url_len, 1);
