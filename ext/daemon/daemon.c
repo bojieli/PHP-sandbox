@@ -237,10 +237,24 @@ PHP_FUNCTION(access_log)
 }
 /* }}} */
 
+/* {{{ match_prefixes */
+int match_prefixes(char* url, char* prefix)
+{
+	char *sepa_pos;
+	do {
+		sepa_pos = strchrnul(prefix, ',');
+		if (strncmp(prefix, url, sepa_pos - prefix) == 0)
+			return SUCCESS;
+		prefix = sepa_pos + 1;
+	} while(sepa_pos != '\0');
+	return FAILURE;
+}
+/* }}} */
+
 /* {{{ proto array http_get(string url)
 	return: {status: int, body: string} */
 #define ASSERT_ALLOW_URL \
-	if (url != strstr(url, php_app_root_url()) && url != strstr(url, DAEMON_G(http_prefix))) { \
+	if (url != strstr(url, php_app_root_url()) && FAILURE == match_prefixes(url, DAEMON_G(http_prefix))) { \
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "URL %s is not allowed to be accessed", url); \
 	}
 
