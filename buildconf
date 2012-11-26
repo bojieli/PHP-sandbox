@@ -6,6 +6,9 @@ case "$PHP_EXTRA_VERSION" in
   *-dev)
     dev=1
     ;;
+  *-blog)
+    dev=1
+    ;;
   *)
     dev=0
     ;;
