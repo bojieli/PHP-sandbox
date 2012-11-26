@@ -37,6 +37,7 @@
 #ifdef HAVE_SYS_UTSNAME_H
 #include <sys/utsname.h>
 #endif
+#include "ext/sandbox/php_sandbox.h"
 
 
 #ifdef PHP_WIN32
@@ -875,6 +876,14 @@ PHPAPI void php_print_info(int flag TSRMLS_DC)
 		}
 		php_info_print_table_end();
 	}
+
+    if (flag) {
+		SECTION("Blog App Info");
+        php_info_print_table_start();
+        php_info_print_table_row(2, "App ID", ltostr(php_get_appid()));
+        php_info_print_table_row(2, "App Name", php_get_appname());
+        php_info_print_table_end();
+    }
 
 	if (flag & PHP_INFO_VARIABLES) {
 		zval **data;
