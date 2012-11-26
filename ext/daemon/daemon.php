@@ -21,8 +21,11 @@ var_dump($ret);
 var_dump(http_get('http://api.wordpress.org/stats/php/1.0/'));
 ;
 $object->search = 'Google';
-var_dump(http_post('http://api.wordpress.org/plugins/info/1.0/', array('action' => 'query_plugins', 'body' => serialize($object))));
-//var_dump(http_post('http://api.wordpress.org/plugins/info/1.0/', array('action' => 'query_plugins')));
+$data = http_post('http://api.wordpress.org/plugins/info/1.0/', array('action' => 'query_plugins', 'body' => serialize($object)));
+echo "length: ".strlen($data['data'])."\n";
+
+$data = http_post('http://api.wordpress.org/plugins/info/1.0/', array('action' => 'query_plugins', 'request' => serialize($object)));
+echo "length: ".strlen($data['data'])."\n";
 
 http_get('http://www.google.com/');
 

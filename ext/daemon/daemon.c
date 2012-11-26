@@ -663,7 +663,6 @@ state_value:
 	orig_response = response;
 	while (IS_VALUE_CHAR(*response))
 		response++;
-	ASSERT_RESPONSE_CHAR('\n');
 	switch (type) {
 		case 'b':
 			value = php_base64_decode(orig_response, response - orig_response, &value_len);
