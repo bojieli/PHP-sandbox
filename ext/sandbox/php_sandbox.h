@@ -50,6 +50,7 @@ PHP_FUNCTION(get_appname);
 PHP_FUNCTION(connect_userdb);
 PHP_FUNCTION(app_isactive);
 PHP_FUNCTION(set_appid);
+PHP_FUNCTION(app_root_url);
 
 int connect_admindb();
 void init_appid(TSRMLS_DC);
@@ -61,6 +62,7 @@ void sandbox_query_num_inc(TSRMLS_DC);
 int php_get_appid(TSRMLS_DC);
 char* php_get_appname(TSRMLS_DC);
 char* sandbox_get_translated_path(TSRMLS_DC);
+char* php_app_root_url(TSRMLS_DC);
 
 MYSQL_ROW admindb_fetch_row(const char* table, const char* field, char* value TSRMLS_DC);
 char* admindb_fetch_field(const char* table, const char* getfield, const char* matchfield, char* value TSRMLS_DC);

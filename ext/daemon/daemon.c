@@ -249,15 +249,12 @@ PHP_FUNCTION(http_get)
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: http_get(string url)");
 		RETURN_NULL();
 	}
-	const char *prefix = DAEMON_G(http_prefix);
-	int full_url_len = strlen(prefix) + url_len;
-	char *full_url = emalloc(full_url_len);
-	memcpy(full_url, prefix, full_url_len);
-	strcpy(full_url + strlen(prefix), url);
+	if (url != strstr(url, php_app_root_url()) && url != strstr(url, DAEMON_G(http_prefix))) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "This URL is not allowed to be accessed");
+	}
 
 	DEFINE_ARRAY(data);
-	add_assoc_stringl(data, "url", full_url, full_url_len, 1);
-	efree(full_url);
+	add_assoc_stringl(data, "url", url, url_len, 1);
 	php_request_daemon(return_value, method, strlen(method), action, strlen(action), data);
 }
 /* }}} */
@@ -275,15 +272,12 @@ PHP_FUNCTION(http_post)
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: http_post(string url, string body)");
 		RETURN_NULL();
 	}
-	const char *prefix = DAEMON_G(http_prefix);
-	int full_url_len = strlen(prefix) + url_len;
-	char *full_url = emalloc(full_url_len);
-	memcpy(full_url, prefix, full_url_len);
-	strcpy(full_url + strlen(prefix), url);
+	if (url != strstr(url, php_app_root_url()) && url != strstr(url, DAEMON_G(http_prefix))) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "This URL is not allowed to be accessed");
+	}
 	
 	DEFINE_ARRAY(data);
-	add_assoc_stringl(data, "url", full_url, full_url_len, 1);
-	efree(full_url);
+	add_assoc_stringl(data, "url", url, url_len, 1);
 
 	if (post_data) {
 		char *body = emalloc(REQ_MAXLEN);

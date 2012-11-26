@@ -54,6 +54,7 @@ const zend_function_entry sandbox_functions[] = {
 	PHP_FE(connect_userdb, NULL)
 	PHP_FE(app_isactive, NULL)
 	PHP_FE(set_appid, NULL)
+	PHP_FE(app_root_url, NULL)
 	PHP_FE_END	/* Must be the last line in sandbox_functions[] */
 };
 /* }}} */
@@ -437,6 +438,33 @@ char* sandbox_get_translated_path(TSRMLS_DC)
 }
 /* }}} */
 
+/* {{{ proto string app_root_url() */
+PHP_FUNCTION(app_root_url)
+{
+	char* url = php_app_root_url(TSRMLS_CC);
+	if (url)
+		ZVAL_STRING(return_value, url, 1);
+	else
+		RETURN_NULL();
+	efree(url);
+}
+/* }}} */
+
+/* {{{ php_app_root_url */
+char* php_app_root_url(TSRMLS_DC)
+{
+	if (SANDBOX_G(appid) <= 0) // not in the scope of management
+		return NULL;
+
+	fcgi_request *request = (fcgi_request*) SG(server_context);
+	char *http_host = fcgi_getenv(request, "HTTP_HOST", strlen("HTTP_HOST"));
+	if (http_host == NULL) {
+		php_error_docref(NULL TSRMLS_CC, E_ERROR, "Internal error: Cannot determine HTTP host");
+		return NULL;
+	}
+	return new_sprintf("http://%s/", http_host);
+}
+/* }}} */
 
 /* --- Supporting Functions --- */
 
