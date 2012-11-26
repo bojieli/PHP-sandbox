@@ -246,7 +246,7 @@ int match_prefixes(char* url, char* prefix)
 		if (strncmp(prefix, url, sepa_pos - prefix) == 0)
 			return SUCCESS;
 		prefix = sepa_pos + 1;
-	} while(sepa_pos != '\0');
+	} while(*sepa_pos != '\0');
 	return FAILURE;
 }
 /* }}} */
@@ -254,8 +254,10 @@ int match_prefixes(char* url, char* prefix)
 /* {{{ proto array http_get(string url)
 	return: {status: int, body: string} */
 #define ASSERT_ALLOW_URL \
-	if (url != strstr(url, php_app_root_url()) && FAILURE == match_prefixes(url, DAEMON_G(http_prefix))) { \
+	char *root = php_app_root_url(); \
+	if ((root == NULL || url != strstr(url, root)) && FAILURE == match_prefixes(url, DAEMON_G(http_prefix))) { \
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "URL %s is not allowed to be accessed", url); \
+		RETURN_NULL(); \
 	}
 
 PHP_FUNCTION(http_get)

@@ -18,6 +18,7 @@ var_dump(sendmail('boj@mail.ustc.edu.cn', 'Email Activation for blog.ustc.edu.cn
 $ret = request_daemon('sync', 'http-get', array('url'=>'http://api.wordpress.org/stats/php/1.0/'));
 var_dump($ret);
 
-var_dump(http_get('stats/php/1.0/'));
-var_dump(http_post('plugins/info/1.0/', array('action' => 'test', 'request' => 1000)));
+var_dump(http_get('http://api.wordpress.org/stats/php/1.0/'));
+var_dump(http_post('http://api.wordpress.org/plugins/info/1.0/', array('action' => 'test', 'request' => 1000)));
+http_get('http://www.google.com/');
 ?>
