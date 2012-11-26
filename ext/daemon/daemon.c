@@ -89,6 +89,7 @@ ZEND_GET_MODULE(daemon)
 PHP_INI_BEGIN()
     STD_PHP_INI_ENTRY("daemon.hostname", "127.0.0.1", PHP_INI_SYSTEM, OnUpdateString, daemon_hostname, zend_daemon_globals, daemon_globals)
     STD_PHP_INI_ENTRY("daemon.port", "0", PHP_INI_SYSTEM, OnUpdateLong, daemon_port, zend_daemon_globals, daemon_globals)
+    STD_PHP_INI_ENTRY("daemon.http_prefix", "", PHP_INI_SYSTEM, OnUpdateString, http_prefix, zend_daemon_globals, daemon_globals)
 PHP_INI_END()
 /* }}} */
 
@@ -96,8 +97,9 @@ PHP_INI_END()
  */
 static void php_daemon_init_globals(zend_daemon_globals *daemon_globals)
 {
-	daemon_globals->daemon_hostname = "127.0.0.1";
+	daemon_globals->daemon_hostname = "";
 	daemon_globals->daemon_port = 0;
+	daemon_globals->http_prefix = "";
 }
 /* }}} */
 
@@ -247,13 +249,15 @@ PHP_FUNCTION(http_get)
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: http_get(string url)");
 		RETURN_NULL();
 	}
-	const char *prefix = "http://api.wordpress.org/";
-	char *full_url = emalloc(strlen(prefix) + url_len);
-	memcpy(full_url, prefix, strlen(prefix));
-	memcpy(full_url + strlen(prefix), url, url_len);
+	const char *prefix = DAEMON_G(http_prefix);
+	int full_url_len = strlen(prefix) + url_len;
+	char *full_url = emalloc(full_url_len);
+	memcpy(full_url, prefix, full_url_len);
+	strcpy(full_url + strlen(prefix), url);
 
 	DEFINE_ARRAY(data);
-	add_assoc_stringl(data, "url", full_url, strlen(prefix) + url_len, 0);
+	add_assoc_stringl(data, "url", full_url, full_url_len, 1);
+	efree(full_url);
 	php_request_daemon(return_value, method, strlen(method), action, strlen(action), data);
 }
 /* }}} */
@@ -271,19 +275,22 @@ PHP_FUNCTION(http_post)
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: http_post(string url, string body)");
 		RETURN_NULL();
 	}
-	const char *prefix = "http://api.wordpress.org/";
-	char *full_url = emalloc(strlen(prefix) + url_len);
-	memcpy(full_url, prefix, strlen(prefix));
-	memcpy(full_url + strlen(prefix), url, url_len);
+	const char *prefix = DAEMON_G(http_prefix);
+	int full_url_len = strlen(prefix) + url_len;
+	char *full_url = emalloc(full_url_len);
+	memcpy(full_url, prefix, full_url_len);
+	strcpy(full_url + strlen(prefix), url);
 	
 	DEFINE_ARRAY(data);
-	add_assoc_stringl(data, "url", full_url, strlen(prefix) + url_len, 0);
+	add_assoc_stringl(data, "url", full_url, full_url_len, 1);
+	efree(full_url);
 
 	if (post_data) {
 		char *body = emalloc(REQ_MAXLEN);
 		int body_len = parse_post_params(post_data, body);
 		if (body_len > 0)
-			add_assoc_stringl(data, "body", body, body_len, 0);
+			add_assoc_stringl(data, "body", body, body_len, 1);
+		efree(body);
 	}
 	php_request_daemon(return_value, method, strlen(method), action, strlen(action), data);
 }

@@ -103,6 +103,7 @@ int parse_post_params(zval* req, char* req_str);
 ZEND_BEGIN_MODULE_GLOBALS(daemon)
 	char *daemon_hostname;
 	int   daemon_port;
+	char *http_prefix;
 ZEND_END_MODULE_GLOBALS(daemon)
 
 /* In every utility function you add that needs to use variables 
