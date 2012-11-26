@@ -385,7 +385,7 @@ PHP_MINFO_FUNCTION(sandbox)
 	php_info_print_table_header(2, "sandbox support", "enabled");
 	php_info_print_table_end();
 
-	DISPLAY_INI_ENTRIES();
+	/* do not DISPLAY_INI_ENTRIES() for security */
 }
 /* }}} */
 
