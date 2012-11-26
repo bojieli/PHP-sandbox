@@ -530,7 +530,10 @@ char* admindb_fetch_field(const char* table, const char* getfield, const char* m
 {
 	char *query = new_sprintf("SELECT %s FROM %s WHERE `%s`='%s'", getfield, table, matchfield, value);
     MYSQL_RES *res = do_mysql_query(SANDBOX_G(admindb_sock), query TSRMLS_CC);
-   	return res ? mysql_fetch_row(res TSRMLS_CC)[0] : NULL;
+   	if (!res)
+		return NULL;
+	char** row = mysql_fetch_row(res TSRMLS_CC);
+	return row ? row[0] : NULL;
 }
 /* }}} */
 
