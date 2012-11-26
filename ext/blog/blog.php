@@ -11,4 +11,8 @@ foreach($functions as $func) {
     echo $func."$br\n";
 }
 echo "$br\n";
+
+$name = 'boj'.'google';
+var_dump(get_appid_by_field('username', $name));
+var_dump(get_appid_by_field('username', 'boj'));
 ?>
