@@ -438,19 +438,19 @@ int php_request_daemon(zval* return_value, const char* method, int method_len, c
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Daemon response parse failed");
 		goto die;
 	}
-	if (response)
-		efree(response);
 	if (return_value == NULL) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Internal Error: NULL return value");
 		goto die;
 	}
+	response ? efree(response) : 0;
+	req_str ? efree(req_str) : 0;
 	return true;
 
 die:
+	response ? efree(response) : 0;
+	req_str ? efree(req_str) : 0;
 	if (return_value == NULL)
 		return false;
-	if (req_str)
-		efree(req_str);
 	RETURN_NULL();
 	return false;
 }
@@ -616,9 +616,15 @@ char* daemon_get_response(char* req_str, int req_len)
 
 	char* buf = emalloc(RESPONSE_MAXLEN+1);
 	bzero(buf, RESPONSE_MAXLEN+1);
-	int length = recv(sd, buf, RESPONSE_MAXLEN, 0);
-	close(sd);
+	char* buf_end = buf;
+	int length;
+	while (0 < (length = recv(sd, buf_end, RESPONSE_MAXLEN-(buf_end-buf), 0)))
+		buf_end += length;
 
+	if (buf_end >= buf + RESPONSE_MAXLEN)
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Daemon response is too long");
+
+	close(sd);
 	return buf;
 }
 /* }}} */
