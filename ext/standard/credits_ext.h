@@ -11,11 +11,9 @@
 */
 
 CREDIT_LINE("BC Math", "Andi Gutmans");
-CREDIT_LINE("boj", "");
 CREDIT_LINE("Bzip2", "Sterling Hughes");
 CREDIT_LINE("Calendar", "Shane Caraveo, Colin Viebrock, Hartmut Holzgraefe, Wez Furlong");
 CREDIT_LINE("COM and .Net", "Wez Furlong");
-CREDIT_LINE("counter", "");
 CREDIT_LINE("ctype", "Hartmut Holzgraefe");
 CREDIT_LINE("cURL", "Sterling Hughes");
 CREDIT_LINE("Date/Time Support", "Derick Rethans");
