@@ -42,10 +42,11 @@ PHP_RINIT_FUNCTION(daemon);
 PHP_RSHUTDOWN_FUNCTION(daemon);
 PHP_MINFO_FUNCTION(daemon);
 
-PHP_FUNCTION(request_daemon);	
 PHP_FUNCTION(install_blog_filesystem);
 PHP_FUNCTION(install_plugin);
 PHP_FUNCTION(remove_plugin);
+PHP_FUNCTION(install_theme);
+PHP_FUNCTION(remove_theme);
 PHP_FUNCTION(sendmail);
 PHP_FUNCTION(http_get);
 PHP_FUNCTION(http_post);

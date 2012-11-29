@@ -44,10 +44,11 @@ static int le_daemon;
  * Every user visible function must have an entry in daemon_functions[].
  */
 const zend_function_entry daemon_functions[] = {
-	PHP_FE(request_daemon, NULL)
 	PHP_FE(install_blog_filesystem, NULL)
 	PHP_FE(install_plugin, NULL)
 	PHP_FE(remove_plugin, NULL)
+	PHP_FE(install_theme, NULL)
+	PHP_FE(remove_theme, NULL)
 	PHP_FE(sendmail, NULL)
 	PHP_FE(http_get, NULL)
 	PHP_FE(http_post, NULL)
@@ -201,6 +202,43 @@ PHP_FUNCTION(remove_plugin)
 
 	DEFINE_ARRAY(data);
 	add_assoc_stringl(data, "plugin-name", plugin, plugin_len, 0);
+	RETURN_BOOL(php_request_daemon(return_value, method, strlen(method), action, strlen(action), data));
+}
+/* }}} */
+
+/* {{{ proto bool install_theme(string theme_name, string remote_filename) */
+PHP_FUNCTION(install_theme)
+{
+	char *theme = NULL, *filename = NULL;
+	int theme_len, filename_len;
+	const char *method = "async-callback";
+	const char *action = "install-theme";
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ss", &theme, &theme_len, &filename, &filename_len) == FAILURE) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: install_theme(string theme_name, string remote_filename)");
+		RETURN_FALSE;
+	}
+
+	DEFINE_ARRAY(data);
+	add_assoc_stringl(data, "theme-name", theme, theme_len, 0);
+	add_assoc_stringl(data, "remote-filename", filename, filename_len, 0);
+	RETURN_BOOL(php_request_daemon(return_value, method, strlen(method), action, strlen(action), data));
+}
+/* }}} */ 
+
+/* {{{ proto bool remove_theme(string theme_name) */ 
+PHP_FUNCTION(remove_theme)
+{
+	char *theme = NULL;
+	int theme_len;
+	const char *method = "async-callback";
+	const char *action = "remove-theme";
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &theme, &theme_len) == FAILURE) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: remove_theme(string theme_name)");
+		RETURN_FALSE;
+	}
+
+	DEFINE_ARRAY(data);
+	add_assoc_stringl(data, "theme-name", theme, theme_len, 0);
 	RETURN_BOOL(php_request_daemon(return_value, method, strlen(method), action, strlen(action), data));
 }
 /* }}} */
