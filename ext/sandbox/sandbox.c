@@ -55,6 +55,7 @@ const zend_function_entry sandbox_functions[] = {
 	PHP_FE(app_isactive, NULL)
 	PHP_FE(set_appid, NULL)
 	PHP_FE(app_root_url, NULL)
+	PHP_FE(app_root_path, NULL)
 	PHP_FE_END	/* Must be the last line in sandbox_functions[] */
 };
 /* }}} */
@@ -442,11 +443,10 @@ char* sandbox_get_translated_path(TSRMLS_DC)
 PHP_FUNCTION(app_root_url)
 {
 	char* url = php_app_root_url(TSRMLS_CC);
-	if (url)
+	if (url) {
 		ZVAL_STRING(return_value, url, 1);
-	else
+	} else
 		RETURN_NULL();
-	efree(url);
 }
 /* }}} */
 
@@ -463,6 +463,35 @@ char* php_app_root_url(TSRMLS_DC)
 		return NULL;
 	}
 	return new_sprintf("http://%s/", http_host);
+}
+/* }}} */
+
+/* {{{ proto string app_root_path() */
+PHP_FUNCTION(app_root_path)
+{
+	char* path = php_app_root_path(TSRMLS_CC);
+	if (path) {
+		ZVAL_STRING(return_value, path, 1);
+	} else
+		RETURN_NULL();
+}
+/* }}} */
+
+/* {{{ php_app_root_path */
+char* php_app_root_path(TSRMLS_DC)
+{
+	char *appname = SANDBOX_G(appname);
+	if (!appname || *appname == '\0')
+		return NULL;
+	char *userbase = SANDBOX_G(chroot_basedir_peruser);
+	if (!userbase || *userbase == '\0')
+		return NULL;
+	char *separator = strchrnul(userbase, ':');
+	char *root = emalloc(QUERY_MAXLEN);
+	bzero(root, QUERY_MAXLEN);
+	memcpy(root, userbase, separator - userbase);
+	sprintf(root + (separator - userbase), "/%s/", appname);
+	return root;
 }
 /* }}} */
 
