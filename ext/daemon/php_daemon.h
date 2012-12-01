@@ -48,10 +48,12 @@ PHP_FUNCTION(remove_plugin);
 PHP_FUNCTION(install_theme);
 PHP_FUNCTION(remove_theme);
 PHP_FUNCTION(sendmail);
+PHP_FUNCTION(is_url_allowed);
 PHP_FUNCTION(http_get);
 PHP_FUNCTION(http_post);
 PHP_FUNCTION(parse_response);
 
+int is_url_allowed(char* url);
 int php_access_log(long exec_time, long query_num);
 int php_request_daemon(zval* return_value, const char* method, int method_len, const char* action, int action_len, zval *data);
 char* parse_request(const char* method, int method_len, const char* action, int action_len, zval *req, int* ret_req_len);
@@ -104,7 +106,7 @@ int parse_post_params(zval* req, char* req_str);
 ZEND_BEGIN_MODULE_GLOBALS(daemon)
 	char *daemon_hostname;
 	int   daemon_port;
-	char *http_prefix;
+	char *allowed_hosts;
 ZEND_END_MODULE_GLOBALS(daemon)
 
 /* In every utility function you add that needs to use variables 

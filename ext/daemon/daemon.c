@@ -90,7 +90,7 @@ ZEND_GET_MODULE(daemon)
 PHP_INI_BEGIN()
     STD_PHP_INI_ENTRY("daemon.hostname", "127.0.0.1", PHP_INI_SYSTEM, OnUpdateString, daemon_hostname, zend_daemon_globals, daemon_globals)
     STD_PHP_INI_ENTRY("daemon.port", "0", PHP_INI_SYSTEM, OnUpdateLong, daemon_port, zend_daemon_globals, daemon_globals)
-    STD_PHP_INI_ENTRY("daemon.http_prefix", "", PHP_INI_SYSTEM, OnUpdateString, http_prefix, zend_daemon_globals, daemon_globals)
+    STD_PHP_INI_ENTRY("daemon.allowed_hosts", "", PHP_INI_SYSTEM, OnUpdateString, allowed_hosts, zend_daemon_globals, daemon_globals)
 PHP_INI_END()
 /* }}} */
 
@@ -100,7 +100,7 @@ static void php_daemon_init_globals(zend_daemon_globals *daemon_globals)
 {
 	daemon_globals->daemon_hostname = "";
 	daemon_globals->daemon_port = 0;
-	daemon_globals->http_prefix = "";
+	daemon_globals->allowed_hosts = "";
 }
 /* }}} */
 
@@ -275,17 +275,60 @@ PHP_FUNCTION(access_log)
 }
 /* }}} */
 
-/* {{{ match_prefixes */
-int match_prefixes(char* url, char* prefix)
+/* {{{ proto bool is_url_allowed(string url) */
+PHP_FUNCTION(is_url_allowed)
 {
-	char *sepa_pos;
+	char* url = NULL;
+	int url_length;
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &url, &url_length) == FAILURE) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: is_url_allowed(string url)");
+		RETURN_FALSE;
+	}
+	RETURN_BOOL(is_url_allowed(url));
+}
+/* }}} */
+
+/* {{{ is_url_allowed */
+#define ISDIGIT(c) ((c)>='0' && (c)<='9')
+#define ISLETTER(c) ((c)>='a' && (c)<='z' || (c)>='A' && (c)<='Z')
+#define ISHOSTCHAR(c) (ISDIGIT(c) || ISLETTER(c) || (c)=='-')
+
+int is_url_allowed(char* url)
+{
+	char *allowed_hosts = estrdup(DAEMON_G(allowed_hosts));
+	char *comma_pos, *match;
 	do {
-		sepa_pos = strchrnul(prefix, ',');
-		if (strncmp(prefix, url, sepa_pos - prefix) == 0)
-			return SUCCESS;
-		prefix = sepa_pos + 1;
-	} while(*sepa_pos != '\0');
-	return FAILURE;
+		comma_pos = strchrnul(allowed_hosts, ',');
+		*comma_pos = '\0'; /* for strstr */
+		if (match = strstr(url, allowed_hosts)) {
+			if (match == url)
+				return true;
+			--match;
+			if (*match == '/')
+				goto scheme;
+			if (*match != '.')
+				goto next;
+			while (--match >= url) {
+				if (*match == '/')
+					goto scheme;
+				if (! ISHOSTCHAR(*match) && *match!='.')
+					goto next;
+			}
+			return true;
+scheme:
+			if (*(--match) != '/')
+				goto next;
+			if (*(--match) != ':')
+				goto next;
+			while (--match >= url)
+				if (! ISLETTER(*match))
+					goto next;
+			return true;
+		}
+next:
+		allowed_hosts = comma_pos + 1;
+	} while(true);
+	return false;
 }
 /* }}} */
 
@@ -293,7 +336,7 @@ int match_prefixes(char* url, char* prefix)
 	return: {status: int, body: string} */
 #define ASSERT_ALLOW_URL \
 	char *root = php_app_root_url(); \
-	if ((root == NULL || url != strstr(url, root)) && FAILURE == match_prefixes(url, DAEMON_G(http_prefix))) { \
+	if ((root == NULL || url != strstr(url, root)) && !is_url_allowed(url)) { \
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "URL %s is not allowed to be accessed", url); \
 		RETURN_NULL(); \
 	}
