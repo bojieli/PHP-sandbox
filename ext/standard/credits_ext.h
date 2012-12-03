@@ -51,7 +51,7 @@ CREDIT_LINE("MySQL", "Zeev Suraski, Zak Greant, Georg Richter");
 CREDIT_LINE("OCI8", "Stig Bakken, Thies C. Arntzen, Andy Sautins, David Benson, Maxim Maletsky, Harald Radi, Antony Dovgal, Andi Gutmans, Wez Furlong, Christopher Jones, Oracle Corporation");
 CREDIT_LINE("ODBC driver for PDO", "Wez Furlong");
 CREDIT_LINE("ODBC", "Stig Bakken, Andreas Karajannis, Frank M. Kromann, Daniel R. Kalowsky");
-CREDIT_LINE("OpenSSL", "Stig Venaas, Wez Furlong, Sascha Kettler");
+CREDIT_LINE("OpenSSL", "Stig Venaas, Wez Furlong, Sascha Kettler, Scott MacVicar");
 CREDIT_LINE("Oracle (OCI) driver for PDO", "Wez Furlong");
 CREDIT_LINE("pcntl", "Jason Greene, Arnaud Le Blanc");
 CREDIT_LINE("PDF", "Uwe Steinmann, Rainer Schaaf");
