@@ -147,7 +147,7 @@ PHP_MINFO_FUNCTION(blog)
 }
 /* }}} */
 
-/* {{{ proto int get_appinfo(int appid) */
+/* {{{ proto array get_appinfo(long appid) */
 PHP_FUNCTION(get_appinfo)
 {
 	ASSERT_PRIVILEGE
@@ -172,7 +172,7 @@ PHP_FUNCTION(get_appinfo)
 }
 /* }}} */
 
-/* {{{ proto int create_app(appname, username, email, password) 
+/* {{{ proto long create_app(appname, username, email, password) 
 	RETURN appid */
 PHP_FUNCTION(create_app)
 {
@@ -233,7 +233,7 @@ PHP_FUNCTION(create_app)
 }
 /* }}} */
 
-/* {{{ proto int app_activate(int appid) */
+/* {{{ proto bool app_activate(long appid) */
 PHP_FUNCTION(app_activate)
 {
 	ASSERT_PRIVILEGE
@@ -242,7 +242,7 @@ PHP_FUNCTION(app_activate)
 }
 /* }}} */
 
-/* {{{ proto int app_deactivate(int appid) */
+/* {{{ proto bool app_deactivate(long appid) */
 PHP_FUNCTION(app_deactivate)
 {
 	ASSERT_PRIVILEGE
@@ -251,7 +251,7 @@ PHP_FUNCTION(app_deactivate)
 }
 /* }}} */
 
-/* {{{ proto int app_count(string field, string value) */
+/* {{{ proto long app_count(string field, string value) */
 PHP_FUNCTION(app_count)
 {
 	ASSERT_PRIVILEGE
@@ -272,7 +272,7 @@ PHP_FUNCTION(app_count)
 }
 /* }}} */
 
-/* {{{ proto int get_appid_by_field(string field, string value) */
+/* {{{ proto long get_appid_by_field(string field, string value) */
 PHP_FUNCTION(get_appid_by_field)
 {
 	ASSERT_PRIVILEGE
@@ -285,10 +285,10 @@ PHP_FUNCTION(get_appid_by_field)
 	}
 
 	char *appid = admindb_fetch_field("appinfo", "id", field, value);
-	if (appid == NULL)
-		RETURN_FALSE;
-
-	ZVAL_LONG(return_value, atol(appid));
+	if (appid == NULL) {
+		ZVAL_LONG(return_value, -1);
+	} else
+		ZVAL_LONG(return_value, atol(appid));
 }
 /* }}} */
 
@@ -316,6 +316,8 @@ PHP_FUNCTION(random_string)
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "bad parameters");
 		RETURN_NULL();
 	}
+	if (length <= 0)
+		RETURN_NULL();
 	ZVAL_STRING(return_value, random_str_gen(length), 1);
 }
 /* }}} */

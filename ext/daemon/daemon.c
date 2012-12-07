@@ -154,6 +154,8 @@ PHP_MINFO_FUNCTION(daemon)
 /* {{{ proto bool install_blog_filesystem(string appname) */
 PHP_FUNCTION(install_blog_filesystem)
 {
+	ASSERT_PRIVILEGE
+
 	char* appname = NULL;
 	int appname_len;
 	const char *method = "async-callback";
@@ -359,7 +361,7 @@ PHP_FUNCTION(http_get)
 }
 /* }}} */
 
-/* {{{ proto array http_post(string url, string body)
+/* {{{ proto array http_post(string url, [array post_data])
 	return: {status: int, body: string} */
 PHP_FUNCTION(http_post)
 {
@@ -435,7 +437,7 @@ int php_access_log(long exec_time, long query_num)
 
 /* {{{ proto INTERNAL int parse_post_params(data, req_str) 
 	return req_str_len */
-/* key=value+key=value ... */
+/* key=value&key=value ... */
 int parse_post_params(zval* req, char* req_str)
 {
 	int req_len = 0;

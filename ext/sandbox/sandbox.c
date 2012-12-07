@@ -234,18 +234,17 @@ die:
 }
 /* }}} */
 
-/* {{{ proto void connect_userdb(long appid)
+/* {{{ proto bool connect_userdb(long appid)
 	Privileged apps only  */
 PHP_FUNCTION(connect_userdb)
 {
 	ASSERT_PRIVILEGE
 	GET_APPID_PARAM
-	php_connect_userdb(appid);
-	RETURN_NULL();
+	RETURN_BOOL(SUCCESS == php_connect_userdb(appid));
 }
 /* }}} */
 
-/* {{{ proto int app_isactive(int appid) */
+/* {{{ proto bool app_isactive(long appid) */
 PHP_FUNCTION(app_isactive)
 {
 	ASSERT_PRIVILEGE
@@ -262,7 +261,7 @@ int php_app_isactive(int appid TSRMLS_DC)
 }
 /* }}} */
 
-/* {{{ proto void set_appid(int appid) */
+/* {{{ proto void set_appid(long appid) */
 PHP_FUNCTION(set_appid)
 {
 	ASSERT_PRIVILEGE
@@ -298,12 +297,6 @@ int php_connect_userdb(int appid TSRMLS_DC)
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "php_connect_userdb: connect error [appid %d]", appid);
 		return FAILURE;
 	}
-	/*
-	if (mysql_select_db(conn, dbname) != 0) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "php_connect_userdb: select error [appid %d]", appid);
-		return FAILURE;
-	}
-	*/
 	return SUCCESS;
 }
 /* }}} */
