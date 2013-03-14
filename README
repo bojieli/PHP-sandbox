@@ -1,0 +1,17 @@
+Security Requirements
+---------------------
+
+* For any blog, program and data of other blogs should not be readable.
+* No program can exhaust the server by taking too much resources.
+* No program can do hacking on other blogs or servers.
+
+Customize PHP Engine
+--------------------
+
+We have customized a PHP Engine for USTC Blog:
+
+* PhpSandbox? -- Make database connected as soon as the PHP program starts running, so it is unnecessary and impossible for PHP code to connect database.
+* PhpCore -- Make it impossible for PHP programs to write any PHP file in code directory, and refuses to execute any PHP program in data directory. Hence a file is either writable or executable, but never both.
+* PhpDaemon -- Disable native networking functions. Only simple HTTP GET and POST can be performed by requesting daemon.
+* PhpSandbox? -- Automatically send access log to daemon after each request terminates.
+* PhpBlog? -- App info is saved in admin database and the functions are implemented in PHP extension.
