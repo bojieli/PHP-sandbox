@@ -172,6 +172,20 @@ PHP_FUNCTION(get_appinfo)
 }
 /* }}} */
 
+static char* _do_sha1(char* str)
+{
+	char *sha1str = emalloc(41);
+	PHP_SHA1_CTX context;
+	unsigned char digest[20];
+	
+	sha1str[0] = '\0';
+	PHP_SHA1Init(&context);
+	PHP_SHA1Update(&context, str, strlen(str));
+	PHP_SHA1Final(digest, &context);
+	make_digest_ex(sha1str, digest, 20);
+	return sha1str;
+}
+
 /* {{{ proto long create_app(appname, username, email, password) 
 	RETURN appid */
 PHP_FUNCTION(create_app)
@@ -196,9 +210,7 @@ PHP_FUNCTION(create_app)
 
 #define SHA1_LENGTH 40
 	char* salt = random_str_gen(SHA1_LENGTH);
-	char* salted_pass = emalloc(SHA1_LENGTH+1);
-	bzero(salted_pass, SHA1_LENGTH+1);
-	make_sha1_digest(salted_pass, new_sprintf("%s\n%s", password, salt));
+	char* salted_pass = _do_sha1(new_sprintf("%s\n%s", password, salt));
 
 	char* fields[] = {"appname", "username", "email", "password", "salt", "token", "isactive", "register_time"};
 	char* values[] = {appname, username, email, salted_pass, salt, random_str_gen(40), "0", ltostr(time(NULL))};
