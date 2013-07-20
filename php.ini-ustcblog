@@ -1,3 +1,10 @@
+;;;;;;;;;;;;;;;;;;;;;;;
+; Note for USTC blog  ;
+;;;;;;;;;;;;;;;;;;;;;;;
+; This file needs to be changed before it can work.
+; Important fields:
+;   admindb.pass
+
 [PHP]
 
 ;;;;;;;;;;;;;;;;;;;
@@ -1866,18 +1873,26 @@ admindb.port = 3306
 admindb.filesock = /var/run/mysqld/mysqld.sock
 admindb.name = ustcblog
 admindb.user = blog-www
-admindb.pass = blog
+; choose a strong password and keep it secret!
+admindb.pass = FIXME
 
 [sandbox]
-sandbox.chroot_basedir = /tmp:/home/boj/blog-boj/lib/wp-source
+; the real "root" is <sandbox.chroot_basedir>:<sandbox.chroot_basedir_peruser/blogname>
+sandbox.chroot_basedir = /tmp:/opt/ustcblog/wordpress
 sandbox.chroot_basedir_peruser = /srv/blog/base
-sandbox.hostname_for_subdomain = localhost
+
+; If you are deploying on *.localhost, change the following field to "localhost"
+; Otherwise you will get permission denied.
+sandbox.hostname_for_subdomain = blog.ustc.edu.cn
 
 [blog]
 blog.userdb_prefix = ub_
+; maximum number of blogs that one email can register
 blog.max_blogs_per_email = 5
 
 [daemon]
+; daemon should be started before PHP-fpm
+; It should listen on a TCP socket to perform privileged actions and do monitoring
 daemon.hostname = 127.0.0.1
 daemon.port = 12696
-daemon.allowed_hosts = wordpress.org,blogsearch.google.com,rest.akismet.com,66.135.58.62,66.135.58.61,72.233.69.88,72.233.69.89
+daemon.allowed_hosts = 
