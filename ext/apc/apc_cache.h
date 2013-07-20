@@ -26,7 +26,7 @@
 
  */
 
-/* $Id: apc_cache.h 326865 2012-07-29 14:19:27Z ab $ */
+/* $Id: apc_cache.h 328172 2012-10-28 21:44:47Z rasmus $ */
 
 #ifndef APC_CACHE_H
 #define APC_CACHE_H
@@ -206,6 +206,8 @@ extern int apc_cache_user_insert(T cache, apc_cache_key_t key,
 
 extern int *apc_cache_insert_mult(apc_cache_t* cache, apc_cache_key_t* keys,
                             apc_cache_entry_t** values, apc_context_t *ctxt, time_t t, int num_entries TSRMLS_DC);
+
+extern apc_cache_entry_t* apc_get_cache_entry(zend_file_handle* h TSRMLS_DC);
 
 /*
  * apc_cache_find searches for a cache entry by filename, and returns a

@@ -26,7 +26,7 @@
 
  */
 
-/* $Id: php_apc.c 327136 2012-08-15 16:41:18Z laruence $ */
+/* $Id: php_apc.c 330418 2013-05-30 07:42:49Z gopalv $ */
 
 #include "apc_zend.h"
 #include "apc_cache.h"
@@ -109,6 +109,10 @@ static void php_apc_init_globals(zend_apc_globals* apc_globals TSRMLS_DC)
     apc_globals->lazy_function_table = NULL;
     apc_globals->serializer_name = NULL;
     apc_globals->serializer = NULL;
+    apc_globals->compiler_hook_func_table = NULL;
+    apc_globals->compiler_hook_class_table = NULL;
+    apc_globals->compile_nesting = 0;
+    apc_globals->enable_opcode_cache = 1;
 }
 
 static void php_apc_shutdown_globals(zend_apc_globals* apc_globals TSRMLS_DC)
@@ -275,6 +279,7 @@ STD_PHP_INI_BOOLEAN("apc.use_request_time", "1", PHP_INI_ALL, OnUpdateBool, use_
 STD_PHP_INI_BOOLEAN("apc.lazy_functions", "0", PHP_INI_SYSTEM, OnUpdateBool, lazy_functions, zend_apc_globals, apc_globals)
 STD_PHP_INI_BOOLEAN("apc.lazy_classes", "0", PHP_INI_SYSTEM, OnUpdateBool, lazy_classes, zend_apc_globals, apc_globals)
 STD_PHP_INI_ENTRY("apc.serializer", "default", PHP_INI_SYSTEM, OnUpdateStringUnempty, serializer_name, zend_apc_globals, apc_globals)
+STD_PHP_INI_BOOLEAN("apc.enable_opcode_cache", "1", PHP_INI_SYSTEM, OnUpdateBool, enable_opcode_cache, zend_apc_globals, apc_globals)
 PHP_INI_END()
 
 /* }}} */
@@ -317,7 +322,7 @@ static PHP_MINFO_FUNCTION(apc)
         php_info_print_table_row(2, "Serialization Support", "broken");
     }
 
-    php_info_print_table_row(2, "Revision", "$Revision: 327136 $");
+    php_info_print_table_row(2, "Revision", "$Revision: 330418 $");
     php_info_print_table_row(2, "Build Date", __DATE__ " " __TIME__);
     php_info_print_table_end();
     DISPLAY_INI_ENTRIES();
@@ -589,7 +594,7 @@ int _apc_store(char *strkey, int strkey_len, const zval *val, const unsigned int
     ctxt.pool = apc_pool_create(APC_SMALL_POOL, apc_sma_malloc, apc_sma_free, apc_sma_protect, apc_sma_unprotect TSRMLS_CC);
     if (!ctxt.pool) {
         HANDLE_UNBLOCK_INTERRUPTIONS();
-        apc_warning("Unable to allocate memory for pool." TSRMLS_CC);
+        apc_warning("apc_store: Unable to allocate memory for pool." TSRMLS_CC);
         return 0;
     }
     ctxt.copy = APC_COPY_IN_USER;
@@ -838,7 +843,7 @@ PHP_FUNCTION(apc_fetch) {
 
     ctxt.pool = apc_pool_create(APC_UNPOOL, apc_php_malloc, apc_php_free, NULL, NULL TSRMLS_CC);
     if (!ctxt.pool) {
-        apc_warning("Unable to allocate memory for pool." TSRMLS_CC);
+        apc_warning("apc_fetch: Unable to allocate memory for pool." TSRMLS_CC);
         RETURN_FALSE;
     }
     ctxt.copy = APC_COPY_OUT_USER;

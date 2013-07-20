@@ -29,7 +29,7 @@
 
  */
 
-/* $Id: apc.c 327370 2012-08-29 21:45:33Z ab $ */
+/* $Id: apc.c 328941 2012-12-31 18:41:07Z ab $ */
 
 #include "apc.h"
 #include "apc_zend.h"
@@ -239,9 +239,9 @@ static int apc_restat(apc_fileinfo_t *fileinfo TSRMLS_DC)
     HANDLE hFile;
     BY_HANDLE_FILE_INFORMATION hInfo;
 
-    hFile = CreateFile(fileinfo->fullpath, GENERIC_WRITE, FILE_SHARE_WRITE|FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+    hFile = CreateFile(fileinfo->fullpath, GENERIC_READ, FILE_SHARE_WRITE|FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_FLAG_BACKUP_SEMANTICS, NULL);
 
-    if (!hFile) {
+    if (hFile == INVALID_HANDLE_VALUE) {
         apc_debug("Cannot create a file HANDLE for %s\n" TSRMLS_CC, fileinfo->fullpath);
         return -1;
     }
@@ -312,7 +312,7 @@ static int apc_restat(apc_fileinfo_t *fileinfo TSRMLS_DC)
 int apc_search_paths(const char* filename, const char* path, apc_fileinfo_t* fileinfo TSRMLS_DC)
 {
     char** paths = NULL;
-    char *exec_fname;
+    const char *exec_fname;
     int exec_fname_length;
     int found = 0;
     int i;
@@ -343,6 +343,7 @@ int apc_search_paths(const char* filename, const char* path, apc_fileinfo_t* fil
             char *tmp = estrndup(filename, n); 
 
             if (!zend_hash_exists(php_stream_get_url_stream_wrappers_hash(), tmp, n + 1)) {
+                efree(tmp);
                 return -1;
             }
             efree(tmp);

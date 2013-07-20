@@ -28,7 +28,7 @@
 
  */
 
-/* $Id: apc_main.c 327102 2012-08-13 13:04:46Z ab $ */
+/* $Id: apc_main.c 330418 2013-05-30 07:42:49Z gopalv $ */
 
 #include "apc_php.h"
 #include "apc_main.h"
@@ -72,28 +72,13 @@ static zend_compile_t* set_compile_hook(zend_compile_t *ptr)
 static int install_function(apc_function_t fn, apc_context_t* ctxt, int lazy TSRMLS_DC)
 {
     int status;
-
-#if APC_HAVE_LOOKUP_HOOKS
-    if(lazy && fn.name[0] != '\0' && strncmp(fn.name, "__autoload", fn.name_len) != 0) {
-        status = zend_hash_add(APCG(lazy_function_table),
-                              fn.name,
-                              fn.name_len+1,
-                              &fn,
-                              sizeof(apc_function_t),
-                              NULL);
-#else
-    if(0) {
-#endif
-    } else {
-        zend_function *func = apc_copy_function_for_execution(fn.function, ctxt TSRMLS_CC);
-        status = zend_hash_add(EG(function_table),
-                              fn.name,
-                              fn.name_len+1,
-                              func,
-                              sizeof(zend_function),
-                              NULL);
-        efree(func);
+    zend_function *func = apc_copy_function_for_execution(fn.function, ctxt TSRMLS_CC);
+    if (func == NULL) {
+        return FAILURE;
     }
+
+    status = zend_hash_add(EG(function_table), fn.name, fn.name_len+1, func, sizeof(zend_function), NULL);
+    efree(func);
 
     if (status == FAILURE) {
         /* apc_error("Cannot redeclare %s()" TSRMLS_CC, fn.name); */
@@ -115,6 +100,8 @@ int apc_lookup_function_hook(char *name, int len, ulong hash, zend_function **fe
 
     if(zend_hash_quick_find(APCG(lazy_function_table), name, len, hash, (void**)&fn) == SUCCESS) {
         *fe = apc_copy_function_for_execution(fn->function, &ctxt TSRMLS_CC);
+        if (fe == NULL)
+            return FAILURE;
         status = zend_hash_add(EG(function_table),
                                   fn->name,
                                   fn->name_len+1,
@@ -163,6 +150,8 @@ static int install_class(apc_class_t cl, apc_context_t* ctxt, int lazy TSRMLS_DC
 
     class_entry =
         apc_copy_class_entry_for_execution(cl.class_entry, ctxt TSRMLS_CC);
+    if (class_entry == NULL)
+        return FAILURE;
 
 
     /* restore parent class pointer for compile-time inheritance */
@@ -379,6 +368,48 @@ default_compile:
 }
 /* }}} */
 
+/* {{{ void apc_compiler_func_table_dtor_hook(void *pDest) */
+void apc_compiler_func_table_dtor_hook(void *pDest) {
+    zend_function *func = (zend_function *)pDest;
+    if (func->type == ZEND_USER_FUNCTION) {
+        TSRMLS_FETCH();
+        function_add_ref(func);
+        zend_hash_next_index_insert(APCG(compiler_hook_func_table), func, sizeof(zend_function), NULL);
+    } 
+    zend_function_dtor(func);
+}
+/* }}} */
+
+/* {{{ void apc_compiler_class_table_dtor_hook(void *pDest) */
+void apc_compiler_class_table_dtor_hook(void *pDest) {
+    zend_class_entry **pce = (zend_class_entry **)pDest;
+
+    if ((*pce)->type == ZEND_USER_CLASS) {
+        TSRMLS_FETCH();
+        ++(*pce)->refcount;
+        zend_hash_next_index_insert(APCG(compiler_hook_class_table), pce, sizeof(zend_class_entry *), NULL);
+    }
+    destroy_zend_class(pce);
+}
+/* }}} */
+
+/* {{{ UNLOAD_COMPILER_TABLES_HOOKS() 
+ */
+#define UNLOAD_COMPILER_TABLES_HOOKS() \
+    do { \
+        zend_hash_destroy(APCG(compiler_hook_func_table)); \
+        FREE_HASHTABLE(APCG(compiler_hook_func_table));  \
+        zend_hash_destroy(APCG(compiler_hook_class_table)); \
+        FREE_HASHTABLE(APCG(compiler_hook_class_table));  \
+        APCG(compiler_hook_func_table) = old_hook_func_table; \
+        APCG(compiler_hook_class_table) = old_hook_class_table; \
+        if (!(--APCG(compile_nesting))) { \
+            CG(class_table)->pDestructor = ZEND_CLASS_DTOR; \
+            CG(function_table)->pDestructor = ZEND_FUNCTION_DTOR; \
+        } \
+    } while (0);
+/* }}} */
+
 /* {{{ apc_compile_cache_entry  */
 zend_bool apc_compile_cache_entry(apc_cache_key_t *key, zend_file_handle* h, int type, time_t t, zend_op_array** op_array, apc_cache_entry_t** cache_entry TSRMLS_DC) {
     int num_functions, num_classes;
@@ -387,23 +418,49 @@ zend_bool apc_compile_cache_entry(apc_cache_key_t *key, zend_file_handle* h, int
     apc_class_t* alloc_classes;
     char *path;
     apc_context_t ctxt;
+    HashTable *old_hook_class_table = NULL, *old_hook_func_table = NULL;
+
+    if (!(APCG(compile_nesting)++)) {
+        CG(function_table)->pDestructor = apc_compiler_func_table_dtor_hook;
+        CG(class_table)->pDestructor = apc_compiler_class_table_dtor_hook;
+    }
+
+    if (APCG(compiler_hook_func_table)) {
+        old_hook_func_table = APCG(compiler_hook_func_table);
+    }
+
+    if (APCG(compiler_hook_class_table)) {
+        old_hook_class_table = APCG(compiler_hook_class_table);
+    }
+
+    ALLOC_HASHTABLE(APCG(compiler_hook_func_table));
+    zend_hash_init(APCG(compiler_hook_func_table), 8, NULL, ZEND_FUNCTION_DTOR, 0);
+    ALLOC_HASHTABLE(APCG(compiler_hook_class_table));
+    zend_hash_init(APCG(compiler_hook_class_table), 8, NULL, ZEND_CLASS_DTOR, 0);
 
     /* remember how many functions and classes existed before compilation */
     num_functions = zend_hash_num_elements(CG(function_table));
     num_classes   = zend_hash_num_elements(CG(class_table));
 
-    /* compile the file using the default compile function,  *
-     * we set *op_array here so we return opcodes during     *
-     * a failure.  We should not return prior to this line.  */
-    *op_array = old_compile_file(h, type TSRMLS_CC);
-    if (*op_array == NULL) {
-        return FAILURE;
-    }
+    zend_try {
+        /* compile the file using the default compile function,  *
+         * we set *op_array here so we return opcodes during     *
+         * a failure.  We should not return prior to this line.  */
+        *op_array = old_compile_file(h, type TSRMLS_CC);
+        if (*op_array == NULL) {
+            UNLOAD_COMPILER_TABLES_HOOKS();
+            return FAILURE;
+        }
+    } zend_catch {
+        UNLOAD_COMPILER_TABLES_HOOKS();
+        zend_bailout();
+    } zend_end_try();
 
     ctxt.pool = apc_pool_create(APC_MEDIUM_POOL, apc_sma_malloc, apc_sma_free, 
                                                  apc_sma_protect, apc_sma_unprotect TSRMLS_CC);
     if (!ctxt.pool) {
-        apc_warning("Unable to allocate memory for pool." TSRMLS_CC);
+        UNLOAD_COMPILER_TABLES_HOOKS();
+        apc_warning("apc_compile_cache_entry: Unable to allocate memory for pool." TSRMLS_CC);
         return FAILURE;
     }
     ctxt.copy = APC_COPY_IN_OPCODE;
@@ -418,7 +475,7 @@ zend_bool apc_compile_cache_entry(apc_cache_key_t *key, zend_file_handle* h, int
         if(h->opened_path) {
             filename = h->opened_path;
         } else {
-            filename = h->filename;
+            filename = (char *)h->filename;
         }
         stream = php_stream_open_wrapper(filename, "rb", REPORT_ERRORS | ENFORCE_SAFE_MODE, NULL);
         if(stream) {
@@ -447,23 +504,62 @@ zend_bool apc_compile_cache_entry(apc_cache_key_t *key, zend_file_handle* h, int
         goto freepool;
     }
 
+    if (zend_hash_num_elements(APCG(compiler_hook_func_table)) 
+            && !(alloc_functions = apc_copy_modified_functions(APCG(compiler_hook_func_table),
+                    alloc_functions, num_functions, &ctxt TSRMLS_CC))) {
+        goto freepool;
+    }
+
+    if (zend_hash_num_elements(APCG(compiler_hook_class_table)) 
+            && !(alloc_classes = apc_copy_modified_classes(APCG(compiler_hook_class_table),
+                    alloc_classes, num_classes, &ctxt TSRMLS_CC))) {
+        goto freepool;
+    }
+
     path = h->opened_path;
-    if(!path && key->type == APC_CACHE_KEY_FPFILE) path = (char*)key->data.fpfile.fullpath;
-    if(!path) path=h->filename;
+    if (!path && key->type == APC_CACHE_KEY_FPFILE) {
+        path = (char*)key->data.fpfile.fullpath;
+    }
+    if (!path) {
+        path = (char *)h->filename;
+    }
 
     apc_debug("2. h->opened_path=[%s]  h->filename=[%s]\n" TSRMLS_CC, h->opened_path?h->opened_path:"null",h->filename);
 
     if(!(*cache_entry = apc_cache_make_file_entry(path, alloc_op_array, alloc_functions, alloc_classes, &ctxt TSRMLS_CC))) {
         goto freepool;
     }
-
+        
+    UNLOAD_COMPILER_TABLES_HOOKS();
     return SUCCESS;
 
 freepool:
+    UNLOAD_COMPILER_TABLES_HOOKS();
     apc_pool_destroy(ctxt.pool TSRMLS_CC);
     ctxt.pool = NULL;
 
     return FAILURE;
+
+}
+/* }}} */
+
+/* {{{ apc_get_cache_entry
+   Fetches the cache entry for a file */
+apc_cache_entry_t* apc_get_cache_entry(zend_file_handle* h TSRMLS_DC)
+{
+    apc_cache_key_t key;
+    time_t t;
+
+    if (!APCG(enabled) || apc_cache_busy(apc_cache)) {
+        return NULL;
+    }
+
+    t = apc_time();
+
+    if (!apc_cache_make_file_key(&key, h->filename, PG(include_path), t TSRMLS_CC)) {
+        return NULL;
+    }
+    return apc_cache_find(apc_cache, key, t TSRMLS_CC);
 
 }
 /* }}} */
@@ -528,7 +624,7 @@ static zend_op_array* my_compile_file(zend_file_handle* h,
         ctxt.pool = apc_pool_create(APC_UNPOOL, apc_php_malloc, apc_php_free,
                                                 apc_sma_protect, apc_sma_unprotect TSRMLS_CC);
         if (!ctxt.pool) {
-            apc_warning("Unable to allocate memory for pool." TSRMLS_CC);
+            apc_warning("my_compile_file: Unable to allocate memory for pool." TSRMLS_CC);
             return old_compile_file(h, type TSRMLS_CC);
         }
         ctxt.copy = APC_COPY_OUT_OPCODE;
@@ -638,7 +734,7 @@ static zval* data_unserialize(const char *filename TSRMLS_DC)
     struct stat sb;
     char *contents, *tmp;
     FILE *fp;
-    php_unserialize_data_t var_hash;
+    php_unserialize_data_t var_hash = {0,};
 
     if(VCWD_STAT(filename, &sb) == -1) {
         return NULL;
@@ -705,6 +801,7 @@ static int apc_load_data(const char *data_file TSRMLS_DC)
     return 0;
 }
 
+#ifndef ZTS
 static int apc_walk_dir(const char *path TSRMLS_DC)
 {
     char file[MAXPATHLEN]={0,};
@@ -736,12 +833,17 @@ static int apc_walk_dir(const char *path TSRMLS_DC)
 
     return 1;
 }
+#endif
 
 void apc_data_preload(TSRMLS_D)
 {
     if(!APCG(preload_path)) return;
-
+#ifndef ZTS
     apc_walk_dir(APCG(preload_path) TSRMLS_CC);
+#else 
+    apc_error("Cannot load data from apc.preload_path=%s in thread-safe mode" TSRMLS_CC, APCG(preload_path));
+#endif
+
 }
 /* }}} */
 
@@ -761,7 +863,9 @@ static int _apc_register_serializer(const char* name, apc_serialize_t serialize,
             serializer->serialize = serialize;
             serializer->unserialize = unserialize;
             serializer->config = config;
-            apc_serializers[i+1].name = NULL;
+            if (i < APC_MAX_SERIALIZERS - 1) {
+                apc_serializers[i+1].name = NULL;
+            }
             return 1;
         }
     }
@@ -803,8 +907,11 @@ int apc_module_init(int module_number TSRMLS_DC)
     apc_user_cache = apc_cache_create(APCG(user_entries_hint), APCG(gc_ttl), APCG(user_ttl) TSRMLS_CC);
 
     /* override compilation */
-    old_compile_file = zend_compile_file;
-    zend_compile_file = my_compile_file;
+    if (APCG(enable_opcode_cache)) {
+        old_compile_file = zend_compile_file;
+        zend_compile_file = my_compile_file;
+    }
+
     REGISTER_LONG_CONSTANT("\000apc_magic", (long)&set_compile_hook, CONST_PERSISTENT | CONST_CS);
     REGISTER_LONG_CONSTANT("\000apc_compile_file", (long)&my_compile_file, CONST_PERSISTENT | CONST_CS);
     REGISTER_LONG_CONSTANT(APC_SERIALIZER_CONSTANT, (long)&_apc_register_serializer, CONST_PERSISTENT | CONST_CS);
@@ -823,23 +930,6 @@ int apc_module_init(int module_number TSRMLS_DC)
 #endif
 
     apc_data_preload(TSRMLS_C);
-
-#if APC_HAVE_LOOKUP_HOOKS
-    if(APCG(lazy_functions)) {
-        zend_set_lookup_function_hook(apc_lookup_function_hook TSRMLS_CC);
-        zend_set_defined_function_hook(apc_defined_function_hook TSRMLS_CC);
-    }
-    if(APCG(lazy_classes)) {
-        zend_set_lookup_class_hook(apc_lookup_class_hook TSRMLS_CC);
-        zend_set_declared_class_hook(apc_declared_class_hook TSRMLS_CC);
-    }
-#else
-    if(APCG(lazy_functions) || APCG(lazy_classes)) {
-        apc_warning("Lazy function/class loading not available with this version of PHP, please disable APC lazy loading." TSRMLS_CC);
-        APCG(lazy_functions) = APCG(lazy_classes) = 0;
-    }
-#endif
-
     APCG(initialized) = 1;
     return 0;
 }
@@ -850,7 +940,10 @@ int apc_module_shutdown(TSRMLS_D)
         return 0;
 
     /* restore compilation */
-    zend_compile_file = old_compile_file;
+    /* override compilation */
+    if (APCG(enable_opcode_cache)) {
+        zend_compile_file = old_compile_file;
+    }
 
     /*
      * In case we got interrupted by a SIGTERM or something else during execution
@@ -1006,17 +1099,6 @@ int apc_request_init(TSRMLS_D)
         APCG(serializer) = apc_find_serializer(APCG(serializer_name) TSRMLS_CC);
     }
 
-#if APC_HAVE_LOOKUP_HOOKS
-    if(APCG(lazy_functions)) {
-        APCG(lazy_function_table) = emalloc(sizeof(HashTable));
-        zend_hash_init(APCG(lazy_function_table), 0, NULL, NULL, 0);
-    }
-    if(APCG(lazy_classes)) {
-        APCG(lazy_class_table) = emalloc(sizeof(HashTable));
-        zend_hash_init(APCG(lazy_class_table), 0, NULL, NULL, 0);
-    }
-#endif
-
 #ifdef APC_FILEHITS
     ALLOC_INIT_ZVAL(APCG(filehits));
     array_init(APCG(filehits));
@@ -1027,18 +1109,6 @@ int apc_request_init(TSRMLS_D)
 
 int apc_request_shutdown(TSRMLS_D)
 {
-
-#if APC_HAVE_LOOKUP_HOOKS
-    if(APCG(lazy_class_table)) {
-        zend_hash_destroy(APCG(lazy_class_table));
-        efree(APCG(lazy_class_table));
-    }
-    if(APCG(lazy_function_table)) {
-        zend_hash_destroy(APCG(lazy_function_table));
-        efree(APCG(lazy_function_table));
-    }
-#endif
-
     apc_deactivate(TSRMLS_C);
 
 #ifdef APC_FILEHITS

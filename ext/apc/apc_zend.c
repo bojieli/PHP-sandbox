@@ -25,7 +25,7 @@
 
  */
 
-/* $Id: apc_zend.c 327090 2012-08-13 03:22:02Z laruence $ */
+/* $Id: apc_zend.c 329499 2013-02-18 23:29:38Z gopalv $ */
 
 #include "apc_zend.h"
 #include "apc_globals.h"
@@ -48,7 +48,13 @@ void apc_php_free(void* p TSRMLS_DC)
 static opcode_handler_t *apc_original_opcode_handlers;
 static opcode_handler_t apc_opcode_handlers[APC_OPCODE_HANDLER_COUNT];
 
-#define APC_EX_T(offset)                    (*(temp_variable *)((char*)execute_data->Ts + offset))
+#ifdef ZEND_ENGINE_2_5
+#define APC_EX_CV(i) (*EX_CV_NUM(execute_data, i))
+#define APC_EX_T(offset) (*EX_TMP_VAR(execute_data, offset))
+#else
+#define APC_EX_CV(i) execute_data->CVs[i]
+#define APC_EX_T(offset) (*(temp_variable *)((char*)execute_data->Ts + offset))
+#endif
 
 #ifdef ZEND_ENGINE_2_4
 static zval *apc_get_zval_ptr(zend_uchar op_type, znode_op *node, zval **freeval, zend_execute_data *execute_data TSRMLS_DC)
@@ -64,7 +70,7 @@ static zval *apc_get_zval_ptr(zend_uchar op_type, znode_op *node, zval **freeval
             return (*freeval = &APC_EX_T(node->var).tmp_var);
         case IS_CV:
         {
-            zval ***ret = &execute_data->CVs[node->var];
+            zval ***ret = &APC_EX_CV(node->var);
 
             if (!*ret) {
                 zend_compiled_variable *cv = &EG(active_op_array)->vars[node->var];
@@ -96,7 +102,7 @@ static zval *apc_get_zval_ptr(znode *node, zval **freeval, zend_execute_data *ex
 #ifdef ZEND_ENGINE_2_1
         case IS_CV:
         {
-            zval ***ret = &execute_data->CVs[node->u.var];
+            zval ***ret = &APC_EX_CV(node->u.var);
 
             if (!*ret) {
                 zend_compiled_variable *cv = &EG(active_op_array)->vars[node->u.var];
@@ -121,12 +127,11 @@ static int ZEND_FASTCALL apc_op_ZEND_INCLUDE_OR_EVAL(ZEND_OPCODE_HANDLER_ARGS)
     APC_ZEND_OPLINE
     zval *freeop1 = NULL;
     zval *inc_filename = NULL, tmp_inc_filename;
-    char realpath[MAXPATHLEN] = {0};
     php_stream_wrapper *wrapper;
-    char *path_for_open;
-    char *full_path = NULL;
+    char *path_for_open, realpath_storage[MAXPATHLEN], *real_path;
     int ret = 0;
-    apc_opflags_t* flags = NULL;
+    zend_file_handle file_handle;
+    apc_cache_entry_t* cache_entry;
 
 #ifdef ZEND_ENGINE_2_4
     if (opline->extended_value != ZEND_INCLUDE_ONCE &&
@@ -151,20 +156,42 @@ static int ZEND_FASTCALL apc_op_ZEND_INCLUDE_OR_EVAL(ZEND_OPCODE_HANDLER_ARGS)
         inc_filename = &tmp_inc_filename;
     }
 
+    /* Check to see if this is a regular file and bail if it isn't */
     wrapper = php_stream_locate_url_wrapper(Z_STRVAL_P(inc_filename), &path_for_open, 0 TSRMLS_CC);
-
-    if (wrapper != &php_plain_files_wrapper || !(IS_ABSOLUTE_PATH(path_for_open, strlen(path_for_open)) || (full_path = expand_filepath(path_for_open, realpath TSRMLS_CC)))) {
-        /* Fallback to original handler */
+    if (wrapper != &php_plain_files_wrapper) {
         if (inc_filename == &tmp_inc_filename) {
             zval_dtor(&tmp_inc_filename);
         }
         return apc_original_opcode_handlers[APC_OPCODE_HANDLER_DECODE(opline)](ZEND_OPCODE_HANDLER_ARGS_PASSTHRU);
     }
 
-    if (!full_path) {
-    	full_path = path_for_open;
+    /* 
+       Before we do anything else, we can check to see if we have a cached version of this
+       file, in which case we can skip the realpath - this also means that we will be checking 
+       the correct realpath for this cache entry since it is possible that the inode existed in
+       a different directory at the time it was cached. Some deploy systems will do tricky things
+       where they rename directories and move a symlink around.
+     */
+    file_handle.filename = inc_filename->value.str.val;
+    file_handle.free_filename = 0;
+    file_handle.type = ZEND_HANDLE_FILENAME;
+    file_handle.opened_path = NULL;
+    file_handle.handle.fp = NULL;
+    cache_entry = apc_get_cache_entry(&file_handle TSRMLS_CC);
+    if (cache_entry) {
+        real_path = cache_entry->data.file.filename;
+    } else {
+        if (!IS_ABSOLUTE_PATH(path_for_open, strlen(path_for_open)) || !VCWD_REALPATH(path_for_open, realpath_storage)) {
+            /* Fallback to original handler */
+            if (inc_filename == &tmp_inc_filename) {
+                zval_dtor(&tmp_inc_filename);
+            }
+            return apc_original_opcode_handlers[APC_OPCODE_HANDLER_DECODE(opline)](ZEND_OPCODE_HANDLER_ARGS_PASSTHRU);
+        }
+        real_path = realpath_storage;
     }
-    if (zend_hash_exists(&EG(included_files), realpath, strlen(realpath) + 1)) {
+
+    if (zend_hash_exists(&EG(included_files), real_path, strlen(real_path) + 1)) {
 #ifdef ZEND_ENGINE_2_4
         if (!(opline->result_type & EXT_TYPE_UNUSED)) {
             ALLOC_INIT_ZVAL(APC_EX_T(opline->result.var).var.ptr);
@@ -186,31 +213,15 @@ static int ZEND_FASTCALL apc_op_ZEND_INCLUDE_OR_EVAL(ZEND_OPCODE_HANDLER_ARGS)
         return 0;
     }
 
-    if (inc_filename == &tmp_inc_filename) {
-        zval_dtor(&tmp_inc_filename);
-    }
-
-    if(apc_reserved_offset != -1) {
-        /* Insanity alert: look into apc_compile.c for why a void** is cast to a apc_opflags_t* */
-        flags = (apc_opflags_t*) & (execute_data->op_array->reserved[apc_reserved_offset]);
-    }
-
-    if(flags && flags->deep_copy == 1) {
-        /* Since the op array is a local copy, we can cheat our way through the file inclusion by temporarily 
-         * changing the op to a plain require/include, calling its handler and finally restoring the opcode.
-         */
 #ifdef ZEND_ENGINE_2_4
-        opline->extended_value = (opline->extended_value == ZEND_INCLUDE_ONCE) ? ZEND_INCLUDE : ZEND_REQUIRE;
-        ret = apc_original_opcode_handlers[APC_OPCODE_HANDLER_DECODE(opline)](ZEND_OPCODE_HANDLER_ARGS_PASSTHRU);
-        opline->extended_value = (opline->extended_value == ZEND_INCLUDE) ? ZEND_INCLUDE_ONCE : ZEND_REQUIRE_ONCE;
+    opline->extended_value = (opline->extended_value == ZEND_INCLUDE_ONCE) ? ZEND_INCLUDE : ZEND_REQUIRE;
+    ret = apc_original_opcode_handlers[APC_OPCODE_HANDLER_DECODE(opline)](ZEND_OPCODE_HANDLER_ARGS_PASSTHRU);
+    opline->extended_value = (opline->extended_value == ZEND_INCLUDE) ? ZEND_INCLUDE_ONCE : ZEND_REQUIRE_ONCE;
 #else
-        Z_LVAL(opline->op2.u.constant) = (Z_LVAL(opline->op2.u.constant) == ZEND_INCLUDE_ONCE) ? ZEND_INCLUDE : ZEND_REQUIRE;
-        ret = apc_original_opcode_handlers[APC_OPCODE_HANDLER_DECODE(opline)](ZEND_OPCODE_HANDLER_ARGS_PASSTHRU);
-        Z_LVAL(opline->op2.u.constant) = (Z_LVAL(opline->op2.u.constant) == ZEND_INCLUDE) ? ZEND_INCLUDE_ONCE : ZEND_REQUIRE_ONCE;
+    Z_LVAL(opline->op2.u.constant) = (Z_LVAL(opline->op2.u.constant) == ZEND_INCLUDE_ONCE) ? ZEND_INCLUDE : ZEND_REQUIRE;
+    ret = apc_original_opcode_handlers[APC_OPCODE_HANDLER_DECODE(opline)](ZEND_OPCODE_HANDLER_ARGS_PASSTHRU);
+    Z_LVAL(opline->op2.u.constant) = (Z_LVAL(opline->op2.u.constant) == ZEND_INCLUDE) ? ZEND_INCLUDE_ONCE : ZEND_REQUIRE_ONCE;
 #endif
-    } else {
-        ret = apc_original_opcode_handlers[APC_OPCODE_HANDLER_DECODE(opline)](ZEND_OPCODE_HANDLER_ARGS_PASSTHRU);
-    }
 
     return ret;
 }
