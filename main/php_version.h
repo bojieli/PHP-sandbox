@@ -6,4 +6,3 @@
 #define PHP_EXTRA_VERSION "-blog"
 #define PHP_VERSION "5.5.1-blog"
 #define PHP_VERSION_ID 50501
-
