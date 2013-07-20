@@ -1867,6 +1867,15 @@ ldap.max_links = -1
 ; tab-width: 4
 ; End:
 
+[apc]
+apc.enabled=1
+apc.shm_segments=1
+; should change sysctl: kernel.shmmax=536870912
+apc.shm_size=512M
+apc.ttl=7200
+apc.user_ttl=7200
+apc.enable_cli=1
+
 [admindb]
 admindb.host = localhost
 admindb.port = 3306
