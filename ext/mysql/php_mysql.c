@@ -2,7 +2,7 @@
    +----------------------------------------------------------------------+
    | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2012 The PHP Group                                |
+   | Copyright (c) 1997-2013 The PHP Group                                |
    +----------------------------------------------------------------------+
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
@@ -300,7 +300,7 @@ static const zend_function_entry mysql_functions[] = {
 #ifdef MYSQL_HAS_SET_CHARSET
 	PHP_FE(mysql_set_charset,							arginfo_mysql_set_charset)
 #endif
-	/* for downwards compatability */
+	/* for downwards compatibility */
 	PHP_DEP_FALIAS(mysql,				mysql_db_query,		arginfo_mysql_db_query)
 	PHP_DEP_FALIAS(mysql_fieldname,		mysql_field_name,	arginfo_mysql_field_name)
 	PHP_DEP_FALIAS(mysql_fieldtable,	mysql_field_table,	arginfo_mysql_field_seek)
@@ -839,7 +839,7 @@ MYSQL* sandbox_mysql_do_connect(char* user, char* passwd, char* host_and_port, c
 static void php_mysql_do_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
 {
 	char *user=NULL, *passwd=NULL, *host_and_port=NULL, *socket=NULL, *tmp=NULL, *host=NULL;
-	int  user_len, passwd_len, host_len;
+	int  user_len = 0, passwd_len = 0, host_len = 0;
 	char *hashed_details=NULL;
 	int hashed_details_length, port = MYSQL_PORT;
 	long client_flags = 0;
@@ -849,6 +849,10 @@ static void php_mysql_do_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
 #endif
 	zend_bool free_host=0, new_link=0;
 	long connect_timeout;
+
+    php_error_docref(NULL TSRMLS_CC,
+                     E_DEPRECATED,
+                     "The mysql extension is deprecated and will be removed in the future: use mysqli or PDO instead");
 
 #if !defined(MYSQL_USE_MYSQLND)
 	if ((MYSQL_VERSION_ID / 100) != (mysql_get_client_version() / 100)) {

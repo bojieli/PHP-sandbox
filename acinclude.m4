@@ -66,10 +66,10 @@ AC_DEFUN([PHP_EXPAND_PATH],[
     $2=$1
   else
     changequote({,})
-    ep_dir="`echo $1|$SED 's%/*[^/][^/]*/*$%%'`"
+    ep_dir=`echo $1|$SED 's%/*[^/][^/]*/*$%%'`
     changequote([,])
-    ep_realdir="`(cd \"$ep_dir\" && pwd)`"
-    $2="$ep_realdir/`basename \"$1\"`"
+    ep_realdir=`(cd "$ep_dir" && pwd)`
+    $2="$ep_realdir"/`basename "$1"`
   fi
 ])
 
@@ -1832,7 +1832,7 @@ AC_TRY_COMPILE([
 ])
 
 dnl -------------------------------------------------------------------------
-dnl Library/function existance and build sanity checks
+dnl Library/function existence and build sanity checks
 dnl -------------------------------------------------------------------------
 
 dnl
@@ -2342,8 +2342,10 @@ AC_DEFUN([PHP_SETUP_OPENSSL],[
       AC_MSG_ERROR([OpenSSL version 0.9.6 or greater required.])
     fi
 
-    if test -n "$OPENSSL_LIBS" && test -n "$OPENSSL_INCS"; then
+    if test -n "$OPENSSL_LIBS"; then
       PHP_EVAL_LIBLINE($OPENSSL_LIBS, $1)
+    fi
+    if test -n "$OPENSSL_INCS"; then
       PHP_EVAL_INCLINE($OPENSSL_INCS)
     fi
   fi
@@ -2932,6 +2934,9 @@ dnl Add providerdesc.o into global objects when needed
   *solaris*)
     PHP_GLOBAL_OBJS="[$]PHP_GLOBAL_OBJS [$]ac_bdir[$]ac_provsrc.o"
     ;;
+  *linux*)
+    PHP_GLOBAL_OBJS="[$]PHP_GLOBAL_OBJS [$]ac_bdir[$]ac_provsrc.o"
+    ;;
   esac
 
 dnl DTrace objects
@@ -2960,12 +2965,12 @@ dnl Generate Makefile.objects entries
   cat>>Makefile.objects<<EOF
 
 $ac_bdir[$]ac_hdrobj: $abs_srcdir/$ac_provsrc
-	dtrace -h -C -s $ac_srcdir[$]ac_provsrc -o \$[]@ && \$(SED) -ibak 's,PHP_,DTRACE_,g' \$[]@
+	CFLAGS="\$(CFLAGS_CLEAN)" dtrace -h -C -s $ac_srcdir[$]ac_provsrc -o \$[]@ && \$(SED) -ibak 's,PHP_,DTRACE_,g' \$[]@
 
 \$(PHP_DTRACE_OBJS): $ac_bdir[$]ac_hdrobj
 
 $ac_bdir[$]ac_provsrc.o: \$(PHP_DTRACE_OBJS)
-	dtrace -G -o \$[]@ -s $abs_srcdir/$ac_provsrc $dtrace_objs
+	CFLAGS="\$(CFLAGS_CLEAN)" dtrace -G -o \$[]@ -s $abs_srcdir/$ac_provsrc $dtrace_objs
 
 EOF
 ])

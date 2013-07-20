@@ -2,7 +2,7 @@
    +----------------------------------------------------------------------+
    | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2012 The PHP Group                                |
+   | Copyright (c) 1997-2013 The PHP Group                                |
    +----------------------------------------------------------------------+
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
@@ -1489,7 +1489,7 @@ PHPAPI int _php_stream_copy_to_stream_ex(php_stream *src, php_stream *dest, size
 	char buf[CHUNK_SIZE];
 	size_t readchunk;
 	size_t haveread = 0;
-	size_t didread;
+	size_t didread, didwrite, towrite;
 	size_t dummy;
 	php_stream_statbuf ssbuf;
 
@@ -1524,16 +1524,16 @@ PHPAPI int _php_stream_copy_to_stream_ex(php_stream *src, php_stream *dest, size
 		p = php_stream_mmap_range(src, php_stream_tell(src), maxlen, PHP_STREAM_MAP_MODE_SHARED_READONLY, &mapped);
 
 		if (p) {
-			mapped = php_stream_write(dest, p, mapped);
+			didwrite = php_stream_write(dest, p, mapped);
 
 			php_stream_mmap_unmap_ex(src, mapped);
 
-			*len = mapped;
+			*len = didwrite;
 
-			/* we've got at least 1 byte to read.
-			 * less than 1 is an error */
-
-			if (mapped > 0) {
+			/* we've got at least 1 byte to read
+			 * less than 1 is an error
+			 * AND read bytes match written */
+			if (mapped > 0 && mapped == didwrite) {
 				return SUCCESS;
 			}
 			return FAILURE;
@@ -1551,7 +1551,6 @@ PHPAPI int _php_stream_copy_to_stream_ex(php_stream *src, php_stream *dest, size
 
 		if (didread) {
 			/* extra paranoid */
-			size_t didwrite, towrite;
 			char *writeptr;
 
 			towrite = didread;
@@ -2290,6 +2289,7 @@ PHPAPI int _php_stream_scandir(char *dirname, char **namelist[], int flags, php_
 			} else {
 				if(vector_size*2 < vector_size) {
 					/* overflow */
+					php_stream_closedir(stream);
 					efree(vector);
 					return FAILURE;
 				}
@@ -2303,6 +2303,7 @@ PHPAPI int _php_stream_scandir(char *dirname, char **namelist[], int flags, php_
 		nfiles++;
 		if(vector_size < 10 || nfiles == 0) {
 			/* overflow */
+			php_stream_closedir(stream);
 			efree(vector);
 			return FAILURE;
 		}
@@ -2311,7 +2312,7 @@ PHPAPI int _php_stream_scandir(char *dirname, char **namelist[], int flags, php_
 
 	*namelist = vector;
 
-	if (compare) {
+	if (nfiles > 0 && compare) {
 		qsort(*namelist, nfiles, sizeof(char *), (int(*)(const void *, const void *))compare);
 	}
 	return nfiles;

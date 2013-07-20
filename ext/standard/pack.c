@@ -2,7 +2,7 @@
    +----------------------------------------------------------------------+
    | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2012 The PHP Group                                |
+   | Copyright (c) 1997-2013 The PHP Group                                |
    +----------------------------------------------------------------------+
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
@@ -69,7 +69,7 @@ char machine_little_endian;
 /* Mapping of byte from char (8bit) to long for machine endian */
 static int byte_map[1];
 
-/* Mappings of bytes from int (machine dependant) to int for machine endian */
+/* Mappings of bytes from int (machine dependent) to int for machine endian */
 static int int_map[sizeof(int)];
 
 /* Mappings of bytes from shorts (16bit) for all endian environments */
@@ -729,8 +729,7 @@ PHP_FUNCTION(unpack)
 						size = len;
 
 						/* Remove everything after the first null */
-						s = 0;
-						while (s++ <= len) {
+						for (s=0 ; s < len ; s++) {
 							if (input[inputpos + s] == pad)
 								break;
 						}

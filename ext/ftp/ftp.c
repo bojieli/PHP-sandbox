@@ -2,7 +2,7 @@
    +----------------------------------------------------------------------+
    | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2012 The PHP Group                                |
+   | Copyright (c) 1997-2013 The PHP Group                                |
    +----------------------------------------------------------------------+
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
@@ -182,6 +182,7 @@ ftp_close(ftpbuf_t *ftp)
 #if HAVE_OPENSSL_EXT
 		if (ftp->ssl_active) {
 			SSL_shutdown(ftp->ssl_handle);
+			SSL_free(ftp->ssl_handle);
 		}
 #endif		
 		closesocket(ftp->fd);
@@ -297,6 +298,7 @@ ftp_login(ftpbuf_t *ftp, const char *user, const char *pass TSRMLS_DC)
 		if (SSL_connect(ftp->ssl_handle) <= 0) {
 			php_error_docref(NULL TSRMLS_CC, E_WARNING, "SSL/TLS handshake failed");
 			SSL_shutdown(ftp->ssl_handle);
+			SSL_free(ftp->ssl_handle);
 			return 0;
 		}
 
@@ -1548,6 +1550,7 @@ data_accepted:
 		if (SSL_connect(data->ssl_handle) <= 0) {
 			php_error_docref(NULL TSRMLS_CC, E_WARNING, "data_accept: SSL/TLS handshake failed");
 			SSL_shutdown(data->ssl_handle);
+			SSL_free(data->ssl_handle);
 			return 0;
 		}
 			
@@ -1565,13 +1568,21 @@ data_accepted:
 databuf_t*
 data_close(ftpbuf_t *ftp, databuf_t *data)
 {
+#if HAVE_OPENSSL_EXT
+	SSL_CTX		*ctx;
+#endif				
 	if (data == NULL) {
 		return NULL;
 	}
 	if (data->listener != -1) {
 #if HAVE_OPENSSL_EXT
 		if (data->ssl_active) {
+		
+			ctx = SSL_get_SSL_CTX(data->ssl_handle);
+			SSL_CTX_free(ctx);
+
 			SSL_shutdown(data->ssl_handle);
+			SSL_free(data->ssl_handle);
 			data->ssl_active = 0;
 		}
 #endif				
@@ -1580,7 +1591,11 @@ data_close(ftpbuf_t *ftp, databuf_t *data)
 	if (data->fd != -1) {
 #if HAVE_OPENSSL_EXT
 		if (data->ssl_active) {
+			ctx = SSL_get_SSL_CTX(data->ssl_handle);
+			SSL_CTX_free(ctx);
+
 			SSL_shutdown(data->ssl_handle);
+			SSL_free(data->ssl_handle);
 			data->ssl_active = 0;
 		}
 #endif				

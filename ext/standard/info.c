@@ -2,7 +2,7 @@
    +----------------------------------------------------------------------+
    | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2012 The PHP Group                                |
+   | Copyright (c) 1997-2013 The PHP Group                                |
    +----------------------------------------------------------------------+
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
@@ -118,7 +118,11 @@ static void php_info_print_stream_hash(const char *name, HashTable *ht TSRMLS_DC
 			zend_hash_internal_pointer_reset_ex(ht, &pos);
 			while (zend_hash_get_current_key_ex(ht, &key, &len, NULL, 0, &pos) == HASH_KEY_IS_STRING)
 			{
-				php_info_print(key);
+				if (!sapi_module.phpinfo_as_text) {
+					php_info_print_html_esc(key, len-1);
+				} else {
+					php_info_print(key);
+				}
 				zend_hash_move_forward_ex(ht, &pos);
 				if (zend_hash_get_current_key_ex(ht, &key, &len, NULL, 0, &pos) == HASH_KEY_IS_STRING) {
 					php_info_print(", ");
@@ -317,7 +321,7 @@ char* php_get_windows_name()
 	}
 
 	if (VER_PLATFORM_WIN32_NT==osvi.dwPlatformId && osvi.dwMajorVersion > 4 ) {
-		if (osvi.dwMajorVersion == 6)	{
+		if (osvi.dwMajorVersion == 6) {
 			if( osvi.dwMinorVersion == 0 ) {
 				if( osvi.wProductType == VER_NT_WORKSTATION ) {
 					major = "Windows Vista";
@@ -330,6 +334,12 @@ char* php_get_windows_name()
 					major = "Windows 7";
 				} else {
 					major = "Windows Server 2008 R2";
+				}
+			} else if ( osvi.dwMinorVersion == 2 ) {
+				if( osvi.wProductType == VER_NT_WORKSTATION )  {
+					major = "Windows 8";
+				} else {
+					major = "Windows Server 2012";
 				}
 			} else {
 				major = "Unknown Windows version";

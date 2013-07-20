@@ -2,7 +2,7 @@
    +----------------------------------------------------------------------+
    | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2012 The PHP Group                                |
+   | Copyright (c) 1997-2013 The PHP Group                                |
    +----------------------------------------------------------------------+
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
@@ -138,7 +138,7 @@ typedef struct _php_ps_globals {
 	int module_number;
 	long cache_expire;
 	union {
-		zval *names[6];
+		zval *names[7];
 		struct {
 			zval *ps_open;
 			zval *ps_close;
@@ -146,6 +146,7 @@ typedef struct _php_ps_globals {
 			zval *ps_write;
 			zval *ps_destroy;
 			zval *ps_gc;
+			zval *ps_create_sid;
 		} name;
 	} mod_user_names;
 	int mod_user_implemented;
@@ -277,11 +278,15 @@ extern zend_class_entry *php_session_class_entry;
 #define PS_IFACE_NAME "SessionHandlerInterface"
 extern zend_class_entry *php_session_iface_entry;
 
+#define PS_SID_IFACE_NAME "SessionIdInterface"
+extern zend_class_entry *php_session_id_iface_entry;
+
 extern PHP_METHOD(SessionHandler, open);
 extern PHP_METHOD(SessionHandler, close);
 extern PHP_METHOD(SessionHandler, read);
 extern PHP_METHOD(SessionHandler, write);
 extern PHP_METHOD(SessionHandler, destroy);
 extern PHP_METHOD(SessionHandler, gc);
+extern PHP_METHOD(SessionHandler, create_sid);
 
 #endif

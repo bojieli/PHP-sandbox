@@ -2,7 +2,7 @@
    +----------------------------------------------------------------------+
    | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2012 The PHP Group                                |
+   | Copyright (c) 1997-2013 The PHP Group                                |
    +----------------------------------------------------------------------+
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
@@ -1333,6 +1333,7 @@ ZEND_FUNCTION(gmp_cmp)
 		res = mpz_cmp_si(*gmpnum_a, Z_LVAL_PP(b_arg));
 	} else {
 		res = mpz_cmp(*gmpnum_a, *gmpnum_b);
+		FREE_GMP_TEMP(temp_b);
 	}
 	FREE_GMP_TEMP(temp_a);
 	
