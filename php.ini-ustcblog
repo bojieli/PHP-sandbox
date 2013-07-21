@@ -1883,7 +1883,7 @@ admindb.filesock = /var/run/mysqld/mysqld.sock
 admindb.name = ustcblog
 admindb.user = blog-www
 ; choose a strong password and keep it secret!
-admindb.pass = FIXME
+admindb.pass = ADMINDB_FIXME
 
 [sandbox]
 ; the real "root" is <sandbox.chroot_basedir>:<sandbox.chroot_basedir_peruser/blogname>
@@ -1904,4 +1904,4 @@ blog.max_blogs_per_email = 5
 ; It should listen on a TCP socket to perform privileged actions and do monitoring
 daemon.hostname = 127.0.0.1
 daemon.port = 12696
-daemon.allowed_hosts = 
+daemon.allowed_hosts =
