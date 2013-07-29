@@ -201,13 +201,13 @@ void init_appid(TSRMLS_DC)
 	}
 
 	fcgi_request *request = (fcgi_request*) SG(server_context);
-	char *http_host = fcgi_getenv(request, "HTTP_HOST", strlen("HTTP_HOST"));
-	if (http_host == NULL) {
-		php_error_docref(NULL TSRMLS_CC, E_ERROR, "HTTP Host does not exist in HTTP header");
-		return;
+    char *server_name = fcgi_getenv(request, "SERVER_NAME", strlen("SERVER_NAME"));
+	if (server_name == NULL) {
+		php_error_docref(NULL TSRMLS_CC, E_ERROR, "Internal error: Cannot find SERVER_NAME in FastCGI header");
+		return NULL;
 	}
-	char *host = emalloc(strlen(http_host)+1);
-	strcpy(host, http_host);
+	char *host = emalloc(strlen(server_name)+1);
+	strcpy(host, server_name);
 
 	char* pos = strstr(host, SANDBOX_G(hostname_for_subdomain));
 	if (pos == NULL)
@@ -218,7 +218,7 @@ void init_appid(TSRMLS_DC)
 	if (!(pos = strstr(host, ".")))
 		goto die;
 	char *subdomain = emalloc(pos - host + 1);
-	memcpy(subdomain, http_host, pos - host);
+	memcpy(subdomain, server_name, pos - host);
 	subdomain[pos - host] = '\0';
 	SANDBOX_G(appname) = subdomain;
 	if (FAILURE == mysql_result_int(SANDBOX_G(admindb_sock), new_sprintf("SELECT id FROM appinfo WHERE `appname`='%s'", addslashes(subdomain)), &(SANDBOX_G(appid)) TSRMLS_CC))
@@ -450,12 +450,12 @@ char* php_app_root_url(TSRMLS_DC)
 		return NULL;
 
 	fcgi_request *request = (fcgi_request*) SG(server_context);
-	char *http_host = fcgi_getenv(request, "HTTP_HOST", strlen("HTTP_HOST"));
-	if (http_host == NULL) {
-		php_error_docref(NULL TSRMLS_CC, E_ERROR, "Internal error: Cannot determine HTTP host");
+	char *server_name = fcgi_getenv(request, "SERVER_NAME", strlen("SERVER_NAME"));
+	if (server_name == NULL) {
+		php_error_docref(NULL TSRMLS_CC, E_ERROR, "Internal error: Cannot find SERVER_NAME in FastCGI header");
 		return NULL;
 	}
-	return new_sprintf("http://%s/", http_host);
+	return new_sprintf("http://%s/", server_name);
 }
 /* }}} */
 
