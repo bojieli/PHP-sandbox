@@ -48,6 +48,8 @@ PHP_FUNCTION(remove_plugin);
 PHP_FUNCTION(install_theme);
 PHP_FUNCTION(remove_theme);
 PHP_FUNCTION(sendmail);
+PHP_FUNCTION(set_3rdparty_domain);
+PHP_FUNCTION(install_ssl_key);
 PHP_FUNCTION(is_url_allowed);
 PHP_FUNCTION(http_get);
 PHP_FUNCTION(http_post);

@@ -50,6 +50,8 @@ const zend_function_entry daemon_functions[] = {
 	PHP_FE(install_theme, NULL)
 	PHP_FE(remove_theme, NULL)
 	PHP_FE(sendmail, NULL)
+	PHP_FE(set_3rdparty_domain, NULL)
+	PHP_FE(install_ssl_key, NULL)
 	PHP_FE(http_get, NULL)
 	PHP_FE(http_post, NULL)
 	PHP_FE(parse_response, NULL)
@@ -262,6 +264,44 @@ PHP_FUNCTION(sendmail)
 	add_assoc_stringl(data, "subject", subject, subject_len, 0);
 	add_assoc_stringl(data, "content", content, content_len, 0);
 	RETURN_BOOL(php_request_daemon(return_value, method, strlen(method), action, strlen(action), data));
+}
+/* }}} */
+
+/* {{{ proto long set_3rdparty_domain(string domain, bool is_ssl) */
+PHP_FUNCTION(set_3rdparty_domain)
+{
+	char *domain = NULL;
+	size_t domain_len;
+	zend_bool is_ssl;
+	const char *method = "sync";
+	const char *action = "set-3rdparty-domain";
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "sb", &domain, &domain_len, &is_ssl) == FAILURE) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: set_3rdparty_domain(string domain, bool is_ssl)");
+		RETURN_FALSE;
+	}
+
+	DEFINE_ARRAY(data);
+	add_assoc_stringl(data, "domain", domain, domain_len, 0);
+	add_assoc_long(data, "is_ssl", (is_ssl ? 1 : 0));
+	php_request_daemon(return_value, method, strlen(method), action, strlen(action), data);
+}
+/* }}} */
+
+/* {{{ proto long install_ssl_key(string domain) */
+PHP_FUNCTION(install_ssl_key)
+{
+	char *domain = NULL;
+	size_t domain_len;
+	const char *method = "sync";
+	const char *action = "install-ssl-key";
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &domain, &domain_len) == FAILURE) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: install_ssl_key(string domain)");
+		RETURN_FALSE;
+	}
+
+	DEFINE_ARRAY(data);
+	add_assoc_stringl(data, "domain", domain, domain_len, 0);
+	php_request_daemon(return_value, method, strlen(method), action, strlen(action), data);
 }
 /* }}} */
 
