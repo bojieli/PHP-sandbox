@@ -103,7 +103,7 @@ MYSQL_RES* buffered_get_next_row(MYSQL_ROW* row TSRMLS_DC);
 	}
 
 #define GET_APPID_PARAM \
-	int appid; \
+	long appid; \
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &appid) == FAILURE) { \
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "bad parameter appid"); \
 		RETURN_NULL(); \

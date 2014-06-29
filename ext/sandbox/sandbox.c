@@ -204,7 +204,7 @@ void init_appid(TSRMLS_DC)
     char *server_name = fcgi_getenv(request, "SERVER_NAME", strlen("SERVER_NAME"));
 	if (server_name == NULL) {
 		php_error_docref(NULL TSRMLS_CC, E_ERROR, "Internal error: Cannot find SERVER_NAME in FastCGI header");
-		return NULL;
+		return;
 	}
 	char *host = emalloc(strlen(server_name)+1);
 	strcpy(host, server_name);
