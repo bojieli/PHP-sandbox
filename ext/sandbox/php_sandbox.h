@@ -98,7 +98,7 @@ MYSQL_RES* buffered_get_next_row(MYSQL_ROW* row TSRMLS_DC);
 
 #define ASSERT_PRIVILEGE \
 	if (php_get_appid() != 0) { \
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "What do you think it is?"); \
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "You know it, bad boy!"); \
 		RETURN_NULL(); \
 	}
 
