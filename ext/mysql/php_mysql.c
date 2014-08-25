@@ -137,6 +137,13 @@ typedef struct _php_mysql_conn {
 #define MYSQL_DISABLE_MQ
 #endif
 
+#define MYSQL_FORCE_DEFAULT_LINK(mysql_link, id) \
+	if (mysql_link) { \
+		php_error_docref(NULL TSRMLS_CC, E_DEPRECATED, "USTC blog connects to database automatically and does not need to specify db connection. The MySQL resource param is deprecated and ignored."); \
+	} \
+	id = php_mysql_get_default_link(INTERNAL_FUNCTION_PARAM_PASSTHRU); \
+	CHECK_LINK(id);
+
 /* {{{ arginfo */
 ZEND_BEGIN_ARG_INFO_EX(arginfo_mysql_connect, 0, 0, 0)
 	ZEND_ARG_INFO(0, hostname)
@@ -241,12 +248,10 @@ ZEND_END_ARG_INFO()
 /* {{{ mysql_functions[]
  */
 static const zend_function_entry mysql_functions[] = {
-/* disallow mysql_connect functions in USTC blog
 	PHP_FE(mysql_connect,								arginfo_mysql_connect)
 	PHP_FE(mysql_pconnect,								arginfo_mysql_pconnect)
 	PHP_FE(mysql_close,									arginfo__optional_mysql_link)
 	PHP_FE(mysql_select_db,								arginfo_mysql_select_db)
-*/
 #ifndef NETWARE		/* The below two functions not supported on NetWare */
 #if MYSQL_VERSION_ID < 40000
 	PHP_DEP_FE(mysql_create_db,							arginfo_mysql_select_db)
@@ -1190,7 +1195,22 @@ static int php_mysql_get_default_link(INTERNAL_FUNCTION_PARAMETERS)
    Opens a connection to a MySQL Server */
 PHP_FUNCTION(mysql_connect)
 {
-	php_mysql_do_connect(INTERNAL_FUNCTION_PARAM_PASSTHRU, 0);
+	zval *mysql_link = NULL;
+	int id = -1;
+    int type;
+    zend_rsrc_list_entry new_index_ptr;
+
+	php_error_docref(NULL TSRMLS_CC, E_DEPRECATED, "USTC Blog automatically connects to the database, so this function is deprecated.");
+
+	id = php_mysql_get_default_link(INTERNAL_FUNCTION_PARAM_PASSTHRU);
+    if (id == -1) {
+		RETURN_FALSE;
+    }
+
+    zend_list_addref(id);
+    Z_LVAL_P(return_value) = id;
+    Z_TYPE_P(return_value) = IS_RESOURCE;
+    return;
 }
 /* }}} */
 
@@ -1198,7 +1218,21 @@ PHP_FUNCTION(mysql_connect)
    Opens a persistent connection to a MySQL Server */
 PHP_FUNCTION(mysql_pconnect)
 {
-	php_mysql_do_connect(INTERNAL_FUNCTION_PARAM_PASSTHRU, 1);
+	zval *mysql_link = NULL; // always NULL, only a placeholder
+	int id = -1; // will carry the ID of default mysql conn
+	php_mysql_conn *mysql; // will carry the default mysql conn
+
+	php_error_docref(NULL TSRMLS_CC, E_DEPRECATED, "USTC Blog automatically connects to the database, so this function is deprecated.");
+
+	id = php_mysql_get_default_link(INTERNAL_FUNCTION_PARAM_PASSTHRU);
+    if (id == -1) {
+		RETURN_FALSE;
+    }
+
+    zend_list_addref(id);
+    Z_LVAL_P(return_value) = id;
+    Z_TYPE_P(return_value) = IS_RESOURCE;
+    return;
 }
 /* }}} */
 
@@ -1209,6 +1243,9 @@ PHP_FUNCTION(mysql_close)
 	int resource_id;
 	zval *mysql_link=NULL;
 	php_mysql_conn *mysql;
+
+    php_error_docref(NULL TSRMLS_CC, E_DEPRECATED, "USTC Blog automatically connects to the database, so this function is deprecated.");
+    RETURN_FALSE;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|r", &mysql_link) == FAILURE) {
 		return;
@@ -1255,14 +1292,14 @@ PHP_FUNCTION(mysql_select_db)
 	int id = -1;
 	php_mysql_conn *mysql;
 
+	php_error_docref(NULL TSRMLS_CC, E_DEPRECATED, "USTC Blog automatically connects to database and this function is deprecated.");
+	RETURN_TRUE;
+
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|r", &db, &db_len, &mysql_link) == FAILURE) {
 		return;
 	}
 
-	if (!mysql_link) {
-		id = php_mysql_get_default_link(INTERNAL_FUNCTION_PARAM_PASSTHRU);
-		CHECK_LINK(id);
-	}
+	MYSQL_FORCE_DEFAULT_LINK(mysql_link, id)
 
 	ZEND_FETCH_RESOURCE2(mysql, php_mysql_conn *, &mysql_link, id, "MySQL-Link", le_link, le_plink);
 
@@ -1300,10 +1337,7 @@ PHP_FUNCTION(mysql_get_host_info)
 		return;
 	}
 
-	if (!mysql_link) {
-		id = php_mysql_get_default_link(INTERNAL_FUNCTION_PARAM_PASSTHRU);
-		CHECK_LINK(id);
-	}
+	MYSQL_FORCE_DEFAULT_LINK(mysql_link, id)
 
 	ZEND_FETCH_RESOURCE2(mysql, php_mysql_conn *, &mysql_link, id, "MySQL-Link", le_link, le_plink);
 
@@ -1323,10 +1357,7 @@ PHP_FUNCTION(mysql_get_proto_info)
 		return;
 	}
 
-	if (!mysql_link) {
-		id = php_mysql_get_default_link(INTERNAL_FUNCTION_PARAM_PASSTHRU);
-		CHECK_LINK(id);
-	}
+	MYSQL_FORCE_DEFAULT_LINK(mysql_link, id)
 
 	ZEND_FETCH_RESOURCE2(mysql, php_mysql_conn *, &mysql_link, id, "MySQL-Link", le_link, le_plink);
 
@@ -1346,10 +1377,7 @@ PHP_FUNCTION(mysql_get_server_info)
 		return;
 	}
 
-	if (!mysql_link) {
-		id = php_mysql_get_default_link(INTERNAL_FUNCTION_PARAM_PASSTHRU);
-		CHECK_LINK(id);
-	}
+	MYSQL_FORCE_DEFAULT_LINK(mysql_link, id)
 
 	ZEND_FETCH_RESOURCE2(mysql, php_mysql_conn *, &mysql_link, id, "MySQL-Link", le_link, le_plink);
 
@@ -1370,10 +1398,7 @@ PHP_FUNCTION(mysql_info)
 		return;
 	}
 
-	if (ZEND_NUM_ARGS() == 0) {
-		id = php_mysql_get_default_link(INTERNAL_FUNCTION_PARAM_PASSTHRU);
-		CHECK_LINK(id);
-	}
+	MYSQL_FORCE_DEFAULT_LINK(mysql_link, id)
 
 	ZEND_FETCH_RESOURCE2(mysql, php_mysql_conn *, &mysql_link, id, "MySQL-Link", le_link, le_plink);
 
@@ -1397,10 +1422,8 @@ PHP_FUNCTION(mysql_thread_id)
 		return;
 	}
 
-	if (ZEND_NUM_ARGS() == 0) {
-		id = php_mysql_get_default_link(INTERNAL_FUNCTION_PARAM_PASSTHRU);
-		CHECK_LINK(id);
-	}
+	MYSQL_FORCE_DEFAULT_LINK(mysql_link, id)
+
 	ZEND_FETCH_RESOURCE2(mysql, php_mysql_conn *, &mysql_link, id, "MySQL-Link", le_link, le_plink);
 
 	RETURN_LONG((long) mysql_thread_id(mysql->conn));
@@ -1423,10 +1446,8 @@ PHP_FUNCTION(mysql_stat)
 		return;
 	}
 
-	if (ZEND_NUM_ARGS() == 0) {
-		id = php_mysql_get_default_link(INTERNAL_FUNCTION_PARAM_PASSTHRU);
-		CHECK_LINK(id);
-	}
+	MYSQL_FORCE_DEFAULT_LINK(mysql_link, id)
+
 	ZEND_FETCH_RESOURCE2(mysql, php_mysql_conn *, &mysql_link, id, "MySQL-Link", le_link, le_plink);
 
 	PHPMY_UNBUFFERED_QUERY_CHECK();
@@ -1455,10 +1476,7 @@ PHP_FUNCTION(mysql_client_encoding)
 		return;
 	}
 
-	if (ZEND_NUM_ARGS() == 0) {
-		id = php_mysql_get_default_link(INTERNAL_FUNCTION_PARAM_PASSTHRU);
-		CHECK_LINK(id);
-	}
+	MYSQL_FORCE_DEFAULT_LINK(mysql_link, id)
 
 	ZEND_FETCH_RESOURCE2(mysql, php_mysql_conn *, &mysql_link, id, "MySQL-Link", le_link, le_plink);
 	RETURN_STRING((char *)mysql_character_set_name(mysql->conn), 1);
@@ -1480,10 +1498,7 @@ PHP_FUNCTION(mysql_set_charset)
 		return;
 	}
 
-	if (ZEND_NUM_ARGS() == 1) {
-		id = php_mysql_get_default_link(INTERNAL_FUNCTION_PARAM_PASSTHRU);
-		CHECK_LINK(id);
-	}
+	MYSQL_FORCE_DEFAULT_LINK(mysql_link, id)
 
 	ZEND_FETCH_RESOURCE2(mysql, php_mysql_conn *, &mysql_link, id, "MySQL-Link", le_link, le_plink);
 
@@ -1507,6 +1522,9 @@ PHP_FUNCTION(mysql_create_db)
 	zval *mysql_link = NULL;
 	int id = -1;
 	php_mysql_conn *mysql;
+
+	php_error_docref(NULL TSRMLS_CC, E_WARNING, "Creating database is not allowed in USTC blog");
+	RETURN_FALSE;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|r", &db, &db_len, &mysql_link) == FAILURE) {
 		return;
@@ -1538,6 +1556,9 @@ PHP_FUNCTION(mysql_drop_db)
 	zval *mysql_link = NULL;
 	int id = -1;
 	php_mysql_conn *mysql;
+
+	php_error_docref(NULL TSRMLS_CC, E_WARNING, "Dropping database is not allowed in USTC blog");
+	RETURN_FALSE;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|r", &db, &db_len, &mysql_link) == FAILURE) {
 		return;
@@ -1574,6 +1595,8 @@ static void php_mysql_do_query_general(char *query, int query_len, zval *mysql_l
 			RETURN_FALSE;
 		}
 	}
+
+	sandbox_query_num_inc(TSRMLS_CC);
 
 	PHPMY_UNBUFFERED_QUERY_CHECK();
 
@@ -1664,10 +1687,7 @@ static void php_mysql_do_query(INTERNAL_FUNCTION_PARAMETERS, int use_store)
 		return;
 	}
 
-	if (!mysql_link) {
-		id = php_mysql_get_default_link(INTERNAL_FUNCTION_PARAM_PASSTHRU);
-		CHECK_LINK(id);
-	}
+	MYSQL_FORCE_DEFAULT_LINK(mysql_link, id)
 
 	php_mysql_do_query_general(query, query_len, mysql_link, id, NULL, use_store, return_value TSRMLS_CC);
 }
@@ -1677,7 +1697,6 @@ static void php_mysql_do_query(INTERNAL_FUNCTION_PARAMETERS, int use_store)
    Sends an SQL query to MySQL */
 PHP_FUNCTION(mysql_query)
 {
-    sandbox_query_num_inc(TSRMLS_CC);
 	php_mysql_do_query(INTERNAL_FUNCTION_PARAM_PASSTHRU, MYSQL_STORE_RESULT);
 }
 /* }}} */
@@ -1705,10 +1724,7 @@ PHP_FUNCTION(mysql_db_query)
 		return;
 	}
 
-	if (!mysql_link) {
-		id = php_mysql_get_default_link(INTERNAL_FUNCTION_PARAM_PASSTHRU);
-		CHECK_LINK(id);
-	}
+	MYSQL_FORCE_DEFAULT_LINK(mysql_link, id)
 
 	php_error_docref(NULL TSRMLS_CC, E_DEPRECATED, "This function is deprecated; use mysql_query() instead");
 
@@ -1726,14 +1742,15 @@ PHP_FUNCTION(mysql_list_dbs)
 	php_mysql_conn *mysql;
 	MYSQL_RES *mysql_result;
 
+	php_error_docref(NULL TSRMLS_CC, E_WARNING, "Listing database is not allowed in USTC Blog");
+	RETURN_FALSE;
+
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|r", &mysql_link) == FAILURE) {
 		return;
 	}
 
-	if (!mysql_link) {
-		id = php_mysql_get_default_link(INTERNAL_FUNCTION_PARAM_PASSTHRU);
-		CHECK_LINK(id);
-	}
+	MYSQL_FORCE_DEFAULT_LINK(mysql_link, id)
+
 	php_error_docref(NULL TSRMLS_CC, E_DEPRECATED, "This function is deprecated; use mysql_query() with SHOW DATABASES instead");
 
 	ZEND_FETCH_RESOURCE2(mysql, php_mysql_conn *, &mysql_link, id, "MySQL-Link", le_link, le_plink);
@@ -1766,10 +1783,7 @@ PHP_FUNCTION(mysql_list_tables)
 		return;
 	}
 
-	if (!mysql_link) {
-		id = php_mysql_get_default_link(INTERNAL_FUNCTION_PARAM_PASSTHRU);
-		CHECK_LINK(id);
-	}
+	MYSQL_FORCE_DEFAULT_LINK(mysql_link, id)
 
 	ZEND_FETCH_RESOURCE2(mysql, php_mysql_conn *, &mysql_link, id, "MySQL-Link", le_link, le_plink);
 
@@ -1804,10 +1818,7 @@ PHP_FUNCTION(mysql_list_fields)
 		return;
 	}
 
-	if (!mysql_link) {
-		id = php_mysql_get_default_link(INTERNAL_FUNCTION_PARAM_PASSTHRU);
-		CHECK_LINK(id);
-	}
+	MYSQL_FORCE_DEFAULT_LINK(mysql_link, id)
 
 	ZEND_FETCH_RESOURCE2(mysql, php_mysql_conn *, &mysql_link, id, "MySQL-Link", le_link, le_plink);
 
@@ -1839,10 +1850,7 @@ PHP_FUNCTION(mysql_list_processes)
 		return;
 	}
 
-	if (ZEND_NUM_ARGS() == 0) {
-		id = php_mysql_get_default_link(INTERNAL_FUNCTION_PARAM_PASSTHRU);
-		CHECK_LINK(id);
-	}
+	MYSQL_FORCE_DEFAULT_LINK(mysql_link, id)
 
 	ZEND_FETCH_RESOURCE2(mysql, php_mysql_conn *, &mysql_link, id, "MySQL-Link", le_link, le_plink);
 
@@ -1934,10 +1942,7 @@ PHP_FUNCTION(mysql_affected_rows)
 		return;
 	}
 
-	if (!mysql_link) {
-		id = php_mysql_get_default_link(INTERNAL_FUNCTION_PARAM_PASSTHRU);
-		CHECK_LINK(id);
-	}
+	MYSQL_FORCE_DEFAULT_LINK(mysql_link, id)
 
 	ZEND_FETCH_RESOURCE2(mysql, php_mysql_conn *, &mysql_link, id, "MySQL-Link", le_link, le_plink);
 
@@ -1987,10 +1992,7 @@ PHP_FUNCTION(mysql_real_escape_string)
 		return;
 	}
 
-	if (ZEND_NUM_ARGS() == 1) {
-		id = php_mysql_get_default_link(INTERNAL_FUNCTION_PARAM_PASSTHRU);
-		CHECK_LINK(id);
-	}
+	MYSQL_FORCE_DEFAULT_LINK(mysql_link, id)
 
 	ZEND_FETCH_RESOURCE2(mysql, php_mysql_conn *, &mysql_link, id, "MySQL-Link", le_link, le_plink);
 
@@ -2014,10 +2016,7 @@ PHP_FUNCTION(mysql_insert_id)
 		return;
 	}
 
-	if (!mysql_link) {
-		id = php_mysql_get_default_link(INTERNAL_FUNCTION_PARAM_PASSTHRU);
-		CHECK_LINK(id);
-	}
+	MYSQL_FORCE_DEFAULT_LINK(mysql_link, id)
 
 	ZEND_FETCH_RESOURCE2(mysql, php_mysql_conn *, &mysql_link, id, "MySQL-Link", le_link, le_plink);
 
@@ -2789,12 +2788,11 @@ PHP_FUNCTION(mysql_ping)
 	int             id         = -1;
 	php_mysql_conn *mysql;
 
-	if (0 == ZEND_NUM_ARGS()) {
-		id = php_mysql_get_default_link(INTERNAL_FUNCTION_PARAM_PASSTHRU);
-		CHECK_LINK(id);
-	} else if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "r", &mysql_link)==FAILURE) {
+	if (0 < ZEND_NUM_ARGS() && zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "r", &mysql_link)==FAILURE) {
 		return;
 	}
+
+	MYSQL_FORCE_DEFAULT_LINK(mysql_link, id)
 
 	ZEND_FETCH_RESOURCE2(mysql, php_mysql_conn *, &mysql_link, id, "MySQL-Link", le_link, le_plink);
 
