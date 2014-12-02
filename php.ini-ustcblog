@@ -318,7 +318,7 @@ serialize_precision = 17
 ; It receives a comma-delimited list of function names. This directive is
 ; *NOT* affected by whether Safe Mode is turned On or Off.
 ; http://php.net/disable-functions
-disable_functions = eval,exec,system,passthru,popen,pclose,shell_exec,proc_open,dl,curl_exec,multi_exec,gzinflate,set_time_limit
+disable_functions = eval,exec,system,passthru,popen,pclose,shell_exec,proc_open,dl,multi_exec,set_time_limit
 
 ; This directive allows you to disable certain classes for security reasons.
 ; It receives a comma-delimited list of class names. This directive is
