@@ -2,7 +2,7 @@
    +----------------------------------------------------------------------+
    | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2013 The PHP Group                                |
+   | Copyright (c) 1997-2015 The PHP Group                                |
    +----------------------------------------------------------------------+
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
@@ -13,7 +13,7 @@
    | license@php.net so we can mail you a copy immediately.               |
    +----------------------------------------------------------------------+
    | Authors: Rasmus Lerdorf <rasmus@php.net>                             |
-   |          Stig Sæther Bakken <ssb@php.net>                            |
+   |          Stig Sï¿½ther Bakken <ssb@php.net>                            |
    |          Zeev Suraski <zeev@zend.com>                                |
    +----------------------------------------------------------------------+
  */
@@ -23,11 +23,6 @@
 /* Synced with php 3.0 revision 1.193 1999-06-16 [ssb] */
 
 #include <stdio.h>
-#ifdef PHP_WIN32
-# include "win32/php_stdint.h"
-#else
-# include <stdint.h>
-#endif
 #include "php.h"
 #include "php_rand.h"
 #include "php_string.h"
@@ -203,8 +198,18 @@ PHPAPI struct lconv *localeconv_r(struct lconv *out)
 	tsrm_mutex_lock( locale_mutex );
 # endif
 
+#if defined(PHP_WIN32) && defined(ZTS)
+	{
+		/* Even with the enabled per thread locale, localeconv
+			won't check any locale change in the master thread. */
+		_locale_t cur = _get_current_locale();
+
+		res = cur->locinfo->lconv;
+	}
+#else
 	/* localeconv doesn't return an error condition */
 	res = localeconv();
+#endif
 
 	*out = *res;
 
@@ -1442,6 +1447,19 @@ PHPAPI void php_basename(const char *s, size_t len, char *suffix, size_t sufflen
 						state = 0;
 						cend = c;
 					}
+#if defined(PHP_WIN32) || defined(NETWARE)
+				/* Catch relative paths in c:file.txt style. They're not to confuse
+				   with the NTFS streams. This part ensures also, that no drive
+				   letter traversing happens. */
+				} else if ((*c == ':' && (c - comp == 1))) {
+					if (state == 0) {
+						comp = c;
+						state = 1;
+					} else {
+						cend = c;
+						state = 0;
+					}
+#endif
 				} else {
 					if (state == 0) {
 						comp = c;
@@ -2730,11 +2748,12 @@ PHP_FUNCTION(lcfirst)
    Uppercase the first character of every word in a string */
 PHP_FUNCTION(ucwords)
 {
-	char *str;
+	char *str, *delims = " \t\r\n\f\v";
 	register char *r, *r_end;
-	int str_len;
+	int str_len, delims_len = 6;
+	char mask[256];
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &str, &str_len) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|s", &str, &str_len, &delims, &delims_len) == FAILURE) {
 		return;
 	}
 
@@ -2742,12 +2761,14 @@ PHP_FUNCTION(ucwords)
 		RETURN_EMPTY_STRING();
 	}
 
+	php_charmask((unsigned char *)delims, delims_len, mask TSRMLS_CC);
+
 	ZVAL_STRINGL(return_value, str, str_len, 1);
 	r = Z_STRVAL_P(return_value);
 
 	*r = toupper((unsigned char) *r);
 	for (r_end = r + Z_STRLEN_P(return_value) - 1; r < r_end; ) {
-		if (isspace((int) *(unsigned char *)r++)) {
+		if (mask[(unsigned char)*r++]) {
 			*r = toupper((unsigned char) *r);
 		}
 	}
@@ -3093,6 +3114,10 @@ static void php_strtr_array(zval *return_value, char *str, int slen, HashTable *
 	int			patterns_len;
 	zend_llist	*allocs;
 
+	if (zend_hash_num_elements(pats) == 0) {
+		RETURN_STRINGL(str, slen, 1);
+	}
+
 	S(&text) = str;
 	L(&text) = slen;
 
@@ -3204,7 +3229,7 @@ static void php_similar_str(const char *txt1, int len1, const char *txt2, int le
 static int php_similar_char(const char *txt1, int len1, const char *txt2, int len2)
 {
 	int sum;
-	int pos1, pos2, max;
+	int pos1 = 0, pos2 = 0, max;
 
 	php_similar_str(txt1, len1, txt2, len2, &pos1, &pos2, &max);
 	if ((sum = max)) {
@@ -3910,7 +3935,7 @@ static void php_str_replace_in_subject(zval *search, zval *replace, zval **subje
 														   replace_value, replace_len, &Z_STRLEN(temp_result), case_sensitivity, replace_count);
 			}
 
-           str_efree(Z_STRVAL_P(result));
+			str_efree(Z_STRVAL_P(result));
 			Z_STRVAL_P(result) = Z_STRVAL(temp_result);
 			Z_STRLEN_P(result) = Z_STRLEN(temp_result);
 
@@ -4564,7 +4589,7 @@ PHPAPI size_t php_strip_tags_ex(char *rbuf, int len, int *stateptr, char *allow,
 	char *tbuf, *buf, *p, *tp, *rp, c, lc;
 	int br, i=0, depth=0, in_q = 0;
 	int state = 0, pos;
-	char *allow_free;
+	char *allow_free = NULL;
 
 	if (stateptr)
 		state = *stateptr;
@@ -4880,6 +4905,10 @@ PHP_FUNCTION(str_repeat)
 
 	/* Initialize the result string */
 	result_len = input_len * mult;
+	if(result_len > INT_MAX) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Result is too big, maximum %d allowed", INT_MAX);
+		RETURN_EMPTY_STRING();
+	}
 	result = (char *)safe_emalloc(input_len, mult, 1);
 
 	/* Heavy optimization for situations where input string is 1 byte long */
@@ -5584,8 +5613,12 @@ PHP_FUNCTION(substr_compare)
 	}
 
 	if (ZEND_NUM_ARGS() >= 4 && len <= 0) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "The length must be greater than zero");
-		RETURN_FALSE;
+		if (len == 0) {
+			RETURN_LONG(0L);
+		} else {
+			php_error_docref(NULL TSRMLS_CC, E_WARNING, "The length must be greater than or equal to zero");
+			RETURN_FALSE;
+		}
 	}
 
 	if (offset < 0) {

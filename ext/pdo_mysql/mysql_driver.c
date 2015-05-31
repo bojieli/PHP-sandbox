@@ -2,7 +2,7 @@
   +----------------------------------------------------------------------+
   | PHP Version 5                                                        |
   +----------------------------------------------------------------------+
-  | Copyright (c) 1997-2013 The PHP Group                                |
+  | Copyright (c) 1997-2015 The PHP Group                                |
   +----------------------------------------------------------------------+
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
@@ -37,7 +37,7 @@
 #include "zend_exceptions.h"
 
 #if defined(PDO_USE_MYSQLND)
-#	define pdo_mysql_init(persistent) mysqlnd_init(persistent)
+#	define pdo_mysql_init(persistent) mysqlnd_init(MYSQLND_CLIENT_NO_FLAG, persistent)
 #else
 #	define pdo_mysql_init(persistent) mysql_init(NULL)
 #endif
@@ -458,6 +458,7 @@ static int pdo_mysql_get_attribute(pdo_dbh_t *dbh, long attr, zval *return_value
 			ZVAL_LONG(return_value, H->buffered);
 			break;
 
+		case PDO_ATTR_EMULATE_PREPARES:
 		case PDO_MYSQL_ATTR_DIRECT_QUERY:
 			ZVAL_LONG(return_value, H->emulate_prepare);
 			break;
@@ -527,9 +528,9 @@ static struct pdo_dbh_methods mysql_methods = {
 /* }}} */
 
 #ifdef PHP_WIN32
-# define MYSQL_UNIX_ADDR	NULL
+# define PDO_DEFAULT_MYSQL_UNIX_ADDR	NULL
 #else
-# define MYSQL_UNIX_ADDR	PDO_MYSQL_G(default_socket)
+# define PDO_DEFAULT_MYSQL_UNIX_ADDR	PDO_MYSQL_G(default_socket)
 #endif
 
 /* {{{ pdo_mysql_handle_factory */
@@ -545,21 +546,26 @@ static int pdo_mysql_handle_factory(pdo_dbh_t *dbh, zval *driver_options TSRMLS_
 		{ "dbname",   "",	0 },
 		{ "host",   "localhost",	0 },
 		{ "port",   "3306",	0 },
-		{ "unix_socket",  MYSQL_UNIX_ADDR,	0 },
+		{ "unix_socket",  PDO_DEFAULT_MYSQL_UNIX_ADDR,	0 },
 	};
 	int connect_opts = 0
 #ifdef CLIENT_MULTI_RESULTS
 		|CLIENT_MULTI_RESULTS
 #endif
-#ifdef CLIENT_MULTI_STATEMENTS
-		|CLIENT_MULTI_STATEMENTS
-#endif
 		;
-
 #if defined(PDO_USE_MYSQLND)
 	int dbname_len = 0;
 	int password_len = 0;
 #endif
+
+#ifdef CLIENT_MULTI_STATEMENTS
+	if (!driver_options) {
+		connect_opts |= CLIENT_MULTI_STATEMENTS;
+	} else if (pdo_attr_lval(driver_options, PDO_MYSQL_ATTR_MULTI_STATEMENTS, 1 TSRMLS_CC)) {
+		connect_opts |= CLIENT_MULTI_STATEMENTS;
+	}
+#endif
+
 	PDO_DBG_ENTER("pdo_mysql_handle_factory");
 	PDO_DBG_INF_FMT("dbh=%p", dbh);
 #ifdef CLIENT_MULTI_RESULTS
@@ -710,7 +716,7 @@ static int pdo_mysql_handle_factory(pdo_dbh_t *dbh, zval *driver_options TSRMLS_
 			}
 		}
 
-#if MYSQL_VERSION_ID > 50605 || defined(MYSQLI_USE_MYSQLND)
+#if MYSQL_VERSION_ID > 50605 || defined(PDO_USE_MYSQLND)
 		{
 			char *public_key = pdo_attr_strval(driver_options, PDO_MYSQL_ATTR_SERVER_PUBLIC_KEY, NULL TSRMLS_CC);
 			if (public_key) {
@@ -737,9 +743,14 @@ static int pdo_mysql_handle_factory(pdo_dbh_t *dbh, zval *driver_options TSRMLS_
 	if(vars[3].optval) {
 		port = atoi(vars[3].optval);
 	}
-	if (vars[2].optval && !strcmp("localhost", vars[2].optval)) {
-		unix_socket = vars[4].optval;  
-	}
+
+#ifdef PHP_WIN32
+	if (vars[2].optval && !strcmp(".", vars[2].optval)) {
+#else
+    if (vars[2].optval && !strcmp("localhost", vars[2].optval)) {
+#endif
+        unix_socket = vars[4].optval;
+    }
 
 	/* TODO: - Check zval cache + ZTS */
 #ifdef PDO_USE_MYSQLND
@@ -752,7 +763,7 @@ static int pdo_mysql_handle_factory(pdo_dbh_t *dbh, zval *driver_options TSRMLS_
 	}
 
 	if (mysqlnd_connect(H->server, host, dbh->username, dbh->password, password_len, dbname, dbname_len,
-						port, unix_socket, connect_opts TSRMLS_CC) == NULL) {
+						port, unix_socket, connect_opts, MYSQLND_CLIENT_NO_FLAG TSRMLS_CC) == NULL) {
 #else
 	if (mysql_real_connect(H->server, host, dbh->username, dbh->password, dbname, port, unix_socket, connect_opts) == NULL) {
 #endif

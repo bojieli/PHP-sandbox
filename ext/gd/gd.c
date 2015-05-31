@@ -2,7 +2,7 @@
    +----------------------------------------------------------------------+
    | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2013 The PHP Group                                |
+   | Copyright (c) 1997-2015 The PHP Group                                |
    +----------------------------------------------------------------------+
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
@@ -82,6 +82,10 @@ static void php_free_ps_enc(zend_rsrc_list_entry *rsrc TSRMLS_DC);
 # endif
 #endif
 
+#if defined(HAVE_GD_XPM) && defined(HAVE_GD_BUNDLED)
+# include "X11/xpm.h"
+#endif
+
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
@@ -91,6 +95,10 @@ static void php_imagettftext_common(INTERNAL_FUNCTION_PARAMETERS, int, int);
 #endif
 
 #include "gd_ctx.c"
+
+/* as it is not really public, duplicate declaration here to avoid 
+   pointless warnings */
+int overflow2(int a, int b);
 
 /* Section Filters Declarations */
 /* IMPORTANT NOTE FOR NEW FILTER
@@ -1281,7 +1289,14 @@ PHP_MINFO_FUNCTION(gd)
 
 	/* need to use a PHPAPI function here because it is external module in windows */
 
+#if defined(HAVE_GD_BUNDLED)
 	php_info_print_table_row(2, "GD Version", PHP_GD_VERSION_STRING);
+#else
+	php_info_print_table_row(2, "GD headers Version", PHP_GD_VERSION_STRING);
+#if defined(HAVE_GD_LIBVERSION)
+	php_info_print_table_row(2, "GD library Version", gdVersionString());
+#endif
+#endif
 
 #ifdef ENABLE_GD_TTF
 	php_info_print_table_row(2, "FreeType Support", "enabled");
@@ -1417,7 +1432,7 @@ PHP_FUNCTION(imageloadfont)
 	gdFontPtr font;
 	php_stream *stream;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &file, &file_name) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "p", &file, &file_name) == FAILURE) {
 		return;
 	}
 
@@ -1538,9 +1553,15 @@ PHP_FUNCTION(imagesetstyle)
 			break;
 		}
 
-		convert_to_long_ex(item);
-
-		stylearr[index++] = Z_LVAL_PP(item);
+		if (Z_TYPE_PP(item) != IS_LONG) {
+			zval lval;
+			lval = **item;
+			zval_copy_ctor(&lval);
+			convert_to_long(&lval);
+			stylearr[index++] = Z_LVAL(lval);
+		} else {
+			stylearr[index++] = Z_LVAL_PP(item);
+		}
 	}
 
 	gdImageSetStyle(im, stylearr, index);
@@ -2082,7 +2103,7 @@ PHP_FUNCTION(imagerotate)
 
 	ZEND_FETCH_RESOURCE(im_src, gdImagePtr, &SIM, -1, "Image", le_gd);
 
-	im_dst = gdImageRotateInterpolated(im_src, (float)degrees, color);
+	im_dst = gdImageRotateInterpolated(im_src, (const float)degrees, color);
 
 	if (im_dst != NULL) {
 		ZEND_REGISTER_RESOURCE(return_value, im_dst, le_gd);
@@ -2348,7 +2369,7 @@ static void _php_image_create_from(INTERNAL_FUNCTION_PARAMETERS, int image_type,
 	long ignore_warning;
 
 	if (image_type == PHP_GDIMG_TYPE_GD2PART) {
-		if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "sllll", &file, &file_len, &srcx, &srcy, &width, &height) == FAILURE) {
+		if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "pllll", &file, &file_len, &srcx, &srcy, &width, &height) == FAILURE) {
 			return;
 		}
 		if (width < 1 || height < 1) {
@@ -2356,7 +2377,7 @@ static void _php_image_create_from(INTERNAL_FUNCTION_PARAMETERS, int image_type,
 			RETURN_FALSE;
 		}
 	} else {
-		if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &file, &file_len) == FAILURE) {
+		if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "p", &file, &file_len) == FAILURE) {
 			return;
 		}
 	}
@@ -2434,7 +2455,7 @@ static void _php_image_create_from(INTERNAL_FUNCTION_PARAMETERS, int image_type,
 		fflush(fp);
 	}
 
-register_im:
+/* register_im: */
 	if (im) {
 		ZEND_REGISTER_RESOURCE(return_value, im, le_gd);
 		php_stream_close(stream);
@@ -3346,14 +3367,26 @@ static void php_imagepolygon(INTERNAL_FUNCTION_PARAMETERS, int filled)
 
 	for (i = 0; i < npoints; i++) {
 		if (zend_hash_index_find(Z_ARRVAL_P(POINTS), (i * 2), (void **) &var) == SUCCESS) {
-			SEPARATE_ZVAL((var));
-			convert_to_long(*var);
-			points[i].x = Z_LVAL_PP(var);
+			if (Z_TYPE_PP(var) != IS_LONG) {
+				zval lval;
+				lval = **var;
+				zval_copy_ctor(&lval);
+				convert_to_long(&lval);
+				points[i].x = Z_LVAL(lval);
+			} else {
+				points[i].x = Z_LVAL_PP(var);
+			}
 		}
 		if (zend_hash_index_find(Z_ARRVAL_P(POINTS), (i * 2) + 1, (void **) &var) == SUCCESS) {
-			SEPARATE_ZVAL(var);
-			convert_to_long(*var);
-			points[i].y = Z_LVAL_PP(var);
+			if (Z_TYPE_PP(var) != IS_LONG) {
+				zval lval;
+				lval = **var;
+				zval_copy_ctor(&lval);
+				convert_to_long(&lval);
+				points[i].y = Z_LVAL(lval);
+			} else {
+				points[i].y = Z_LVAL_PP(var);
+			}
 		}
 	}
 
@@ -4013,7 +4046,7 @@ PHP_FUNCTION(imagepsencodefont)
 	char *enc, **enc_vector;
 	int enc_len, *f_ind;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "rs", &fnt, &enc, &enc_len) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "rp", &fnt, &enc, &enc_len) == FAILURE) {
 		return;
 	}
 
@@ -4859,9 +4892,15 @@ PHP_FUNCTION(imageconvolution)
 
 			for (j=0; j<3; j++) {
 				if (zend_hash_index_find(Z_ARRVAL_PP(var), (j), (void **) &var2) == SUCCESS) {
-					SEPARATE_ZVAL(var2);
-					convert_to_double(*var2);
-					matrix[i][j] = (float)Z_DVAL_PP(var2);
+					if (Z_TYPE_PP(var2) != IS_DOUBLE) {
+						zval dval;
+						dval = **var2;
+						zval_copy_ctor(&dval);
+						convert_to_double(&dval);
+						matrix[i][j] = (float)Z_DVAL(dval);
+					} else {
+						matrix[i][j] = (float)Z_DVAL_PP(var2);
+					}
 				} else {
 					php_error_docref(NULL TSRMLS_CC, E_WARNING, "You must have a 3x3 matrix");
 					RETURN_FALSE;
@@ -4954,28 +4993,60 @@ PHP_FUNCTION(imagecrop)
 	ZEND_FETCH_RESOURCE(im, gdImagePtr, &IM, -1, "Image", le_gd);
 
 	if (zend_hash_find(HASH_OF(z_rect), "x", sizeof("x"), (void **)&tmp) != FAILURE) {
-		rect.x = Z_LVAL_PP(tmp);
+		if (Z_TYPE_PP(tmp) != IS_LONG) {
+			zval lval;
+			lval = **tmp;
+			zval_copy_ctor(&lval);
+			convert_to_long(&lval);
+			rect.x = Z_LVAL(lval);
+		} else {
+			rect.x = Z_LVAL_PP(tmp);
+		}
 	} else {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Missing x position");
 		RETURN_FALSE;
 	}
 
 	if (zend_hash_find(HASH_OF(z_rect), "y", sizeof("x"), (void **)&tmp) != FAILURE) {
-		rect.y = Z_LVAL_PP(tmp);
+		if (Z_TYPE_PP(tmp) != IS_LONG) {
+			zval lval;
+			lval = **tmp;
+			zval_copy_ctor(&lval);
+			convert_to_long(&lval);
+			rect.y = Z_LVAL(lval);
+		} else {
+			rect.y = Z_LVAL_PP(tmp);
+		}
 	} else {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Missing y position");
 		RETURN_FALSE;
 	}
 
 	if (zend_hash_find(HASH_OF(z_rect), "width", sizeof("width"), (void **)&tmp) != FAILURE) {
-		rect.width = Z_LVAL_PP(tmp);
+		if (Z_TYPE_PP(tmp) != IS_LONG) {
+			zval lval;
+			lval = **tmp;
+			zval_copy_ctor(&lval);
+			convert_to_long(&lval);
+			rect.width = Z_LVAL(lval);
+		} else {
+			rect.width = Z_LVAL_PP(tmp);
+		}
 	} else {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Missing width");
 		RETURN_FALSE;
 	}
 
 	if (zend_hash_find(HASH_OF(z_rect), "height", sizeof("height"), (void **)&tmp) != FAILURE) {
-		rect.height = Z_LVAL_PP(tmp);
+		if (Z_TYPE_PP(tmp) != IS_LONG) {
+			zval lval;
+			lval = **tmp;
+			zval_copy_ctor(&lval);
+			convert_to_long(&lval);
+			rect.height = Z_LVAL(lval);
+		} else {
+			rect.height = Z_LVAL_PP(tmp);
+		}
 	} else {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Missing height");
 		RETURN_FALSE;
@@ -5045,40 +5116,36 @@ PHP_FUNCTION(imagescale)
 {
 	zval *IM;
 	gdImagePtr im;
-	gdImagePtr im_scaled;
-	int new_width, new_height = -1;
-	gdInterpolationMethod method = GD_BILINEAR_FIXED;
+	gdImagePtr im_scaled = NULL;
+	int new_width, new_height;
+	long tmp_w, tmp_h=-1, tmp_m = GD_BILINEAR_FIXED;
+	gdInterpolationMethod method;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "rl|ll", &IM, &new_width, &new_height, &method) == FAILURE)  {
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "rl|ll", &IM, &tmp_w, &tmp_h, &tmp_m) == FAILURE)  {
 		return;
 	}
+	method = tmp_m;
 
 	ZEND_FETCH_RESOURCE(im, gdImagePtr, &IM, -1, "Image", le_gd);
-	im_scaled = gdImageScale(im, new_width, new_height);
-	goto finish;
-	switch (method) {
-		case GD_NEAREST_NEIGHBOUR:
-			im_scaled = gdImageScaleNearestNeighbour(im, new_width, new_height);
-			break;
 
-		case GD_BILINEAR_FIXED:
-			im_scaled = gdImageScaleBilinear(im, new_width, new_height);
-			break;
+	if (tmp_h < 0) {
+		/* preserve ratio */
+		long src_x, src_y;
 
-		case GD_BICUBIC:
-			im_scaled = gdImageScaleBicubicFixed(im, new_width, new_height);
-			break;
-
-		case GD_BICUBIC_FIXED:
-			im_scaled = gdImageScaleBicubicFixed(im, new_width, new_height);
-			break;
-
-		default:
-			im_scaled = gdImageScaleTwoPass(im, im->sx, im->sy, new_width, new_height);
-			break;
-
+		src_x = gdImageSX(im);
+		src_y = gdImageSY(im);
+		if (src_x) {
+			tmp_h = tmp_w * src_y / src_x;
+		}
 	}
-finish:
+
+	new_width = tmp_w;
+	new_height = tmp_h;
+
+	if (gdImageSetInterpolationMethod(im, method)) {
+		im_scaled = gdImageScale(im, new_width, new_height);
+	}
+
 	if (im_scaled == NULL) {
 		RETURN_FALSE;
 	} else {
@@ -5124,8 +5191,13 @@ PHP_FUNCTION(imageaffine)
 					affine[i] = Z_DVAL_PP(zval_affine_elem);
 					break;
 				case IS_STRING:
-					convert_to_double_ex(zval_affine_elem);
-					affine[i] = Z_DVAL_PP(zval_affine_elem);
+					{
+						zval dval;
+						dval = **zval_affine_elem;
+						zval_copy_ctor(&dval);
+						convert_to_double(&dval);
+						affine[i] = Z_DVAL(dval);
+					}
 					break;
 				default:
 					php_error_docref(NULL TSRMLS_CC, E_WARNING, "Invalid type for element %i", i);
@@ -5136,32 +5208,60 @@ PHP_FUNCTION(imageaffine)
 
 	if (z_rect != NULL) {
 		if (zend_hash_find(HASH_OF(z_rect), "x", sizeof("x"), (void **)&tmp) != FAILURE) {
-			convert_to_long_ex(tmp);
-			rect.x = Z_LVAL_PP(tmp);
+			if (Z_TYPE_PP(tmp) != IS_LONG) {
+				zval lval;
+				lval = **tmp;
+				zval_copy_ctor(&lval);
+				convert_to_long(&lval);
+				rect.x = Z_LVAL(lval);
+			} else {
+				rect.x = Z_LVAL_PP(tmp);
+			}
 		} else {
 			php_error_docref(NULL TSRMLS_CC, E_WARNING, "Missing x position");
 			RETURN_FALSE;
 		}
 
 		if (zend_hash_find(HASH_OF(z_rect), "y", sizeof("x"), (void **)&tmp) != FAILURE) {
-			convert_to_long_ex(tmp);
-			rect.y = Z_LVAL_PP(tmp);
+			if (Z_TYPE_PP(tmp) != IS_LONG) {
+				zval lval;
+				lval = **tmp;
+				zval_copy_ctor(&lval);
+				convert_to_long(&lval);
+				rect.y = Z_LVAL(lval);
+			} else {
+				rect.y = Z_LVAL_PP(tmp);
+			}
 		} else {
 			php_error_docref(NULL TSRMLS_CC, E_WARNING, "Missing y position");
 			RETURN_FALSE;
 		}
 
 		if (zend_hash_find(HASH_OF(z_rect), "width", sizeof("width"), (void **)&tmp) != FAILURE) {
-			convert_to_long_ex(tmp);
-			rect.width = Z_LVAL_PP(tmp);
+			if (Z_TYPE_PP(tmp) != IS_LONG) {
+				zval lval;
+				lval = **tmp;
+				zval_copy_ctor(&lval);
+				convert_to_long(&lval);
+				rect.width = Z_LVAL(lval);
+			} else {
+				rect.width = Z_LVAL_PP(tmp);
+			}
 		} else {
 			php_error_docref(NULL TSRMLS_CC, E_WARNING, "Missing width");
 			RETURN_FALSE;
 		}
 
 		if (zend_hash_find(HASH_OF(z_rect), "height", sizeof("height"), (void **)&tmp) != FAILURE) {
-			convert_to_long_ex(tmp);
-			rect.height = Z_LVAL_PP(tmp);
+			if (Z_TYPE_PP(tmp) != IS_LONG) {
+				zval lval;
+				lval = **tmp;
+				zval_copy_ctor(&lval);
+				convert_to_long(&lval);
+				rect.height = Z_LVAL(lval);
+			} else {
+				rect.height = Z_LVAL_PP(tmp);
+			}
 		} else {
 			php_error_docref(NULL TSRMLS_CC, E_WARNING, "Missing height");
 			RETURN_FALSE;
@@ -5175,8 +5275,6 @@ PHP_FUNCTION(imageaffine)
 		pRect = NULL;
 	}
 
-
-	//int gdTransformAffineGetImage(gdImagePtr *dst, const gdImagePtr src, gdRectPtr src_area, const double affine[6]);
 	if (gdTransformAffineGetImage(&dst, src, pRect, affine) != GD_TRUE) {
 		RETURN_FALSE;
 	}
@@ -5195,7 +5293,7 @@ PHP_FUNCTION(imageaffinematrixget)
 {
 	double affine[6];
 	long type;
-	zval *options;
+	zval *options = NULL;
 	zval **tmp;
 	int res = GD_FALSE, i;
 
@@ -5207,20 +5305,35 @@ PHP_FUNCTION(imageaffinematrixget)
 		case GD_AFFINE_TRANSLATE:
 		case GD_AFFINE_SCALE: {
 			double x, y;
-			if (Z_TYPE_P(options) != IS_ARRAY) {
+			if (!options || Z_TYPE_P(options) != IS_ARRAY) {
 				php_error_docref(NULL TSRMLS_CC, E_WARNING, "Array expected as options");
+				RETURN_FALSE;
 			}
 			if (zend_hash_find(HASH_OF(options), "x", sizeof("x"), (void **)&tmp) != FAILURE) {
-				convert_to_double_ex(tmp);
-				x = Z_DVAL_PP(tmp);
+				if (Z_TYPE_PP(tmp) != IS_DOUBLE) {
+					zval dval;
+					dval = **tmp;
+					zval_copy_ctor(&dval);
+					convert_to_double(&dval);
+					x = Z_DVAL(dval);
+				} else {
+					x = Z_DVAL_PP(tmp);
+				}
 			} else {
 				php_error_docref(NULL TSRMLS_CC, E_WARNING, "Missing x position");
 				RETURN_FALSE;
 			}
 
 			if (zend_hash_find(HASH_OF(options), "y", sizeof("y"), (void **)&tmp) != FAILURE) {
-				convert_to_double_ex(tmp);
-				y = Z_DVAL_PP(tmp);
+				if (Z_TYPE_PP(tmp) != IS_DOUBLE) {
+					zval dval;
+					dval = **tmp;
+					zval_copy_ctor(&dval);
+					convert_to_double(&dval);
+					y = Z_DVAL(dval);
+				} else {
+					y = Z_DVAL_PP(tmp);
+				}
 			} else {
 				php_error_docref(NULL TSRMLS_CC, E_WARNING, "Missing y position");
 				RETURN_FALSE;
@@ -5239,6 +5352,10 @@ PHP_FUNCTION(imageaffinematrixget)
 		case GD_AFFINE_SHEAR_VERTICAL: {
 			double angle;
 
+			if (!options) {
+				php_error_docref(NULL TSRMLS_CC, E_WARNING, "Number is expected as option");
+				RETURN_FALSE;
+			}
 			convert_to_double_ex(&options);
 			angle = Z_DVAL_P(options);
 
@@ -5300,8 +5417,13 @@ PHP_FUNCTION(imageaffinematrixconcat)
 					m1[i] = Z_DVAL_PP(tmp);
 					break;
 				case IS_STRING:
-					convert_to_double_ex(tmp);
-					m1[i] = Z_DVAL_PP(tmp);
+					{
+						zval dval;
+						dval = **tmp;
+						zval_copy_ctor(&dval);
+						convert_to_double(&dval);
+						m1[i] = Z_DVAL(dval);
+					}
 					break;
 				default:
 					php_error_docref(NULL TSRMLS_CC, E_WARNING, "Invalid type for element %i", i);
@@ -5317,8 +5439,13 @@ PHP_FUNCTION(imageaffinematrixconcat)
 					m2[i] = Z_DVAL_PP(tmp);
 					break;
 				case IS_STRING:
-					convert_to_double_ex(tmp);
-					m2[i] = Z_DVAL_PP(tmp);
+					{
+						zval dval;
+						dval = **tmp;
+						zval_copy_ctor(&dval);
+						convert_to_double(&dval);
+						m2[i] = Z_DVAL(dval);
+					}
 					break;
 				default:
 					php_error_docref(NULL TSRMLS_CC, E_WARNING, "Invalid type for element %i", i);

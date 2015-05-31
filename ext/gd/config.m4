@@ -7,11 +7,11 @@ dnl Configure options
 dnl
 
 PHP_ARG_WITH(gd, for GD support,
-[  --with-gd[=DIR]         Include GD support.  DIR is the GD library base
+[  --with-gd[=DIR]           Include GD support.  DIR is the GD library base
                           install directory [BUNDLED]])
 if test -z "$PHP_VPX_DIR"; then
   PHP_ARG_WITH(vpx-dir, for the location of libvpx,
-  [  --with-vpx-dir[=DIR]     GD: Set the path to libvpx install prefix], no, no)
+  [  --with-vpx-dir[=DIR]      GD: Set the path to libvpx install prefix], no, no)
 fi
 
 if test -z "$PHP_JPEG_DIR"; then
@@ -39,10 +39,10 @@ PHP_ARG_WITH(t1lib, for T1lib support,
 [  --with-t1lib[=DIR]        GD: Include T1lib support. T1lib version >= 5.0.0 required], no, no)
 
 PHP_ARG_ENABLE(gd-native-ttf, whether to enable truetype string function in GD,
-[  --enable-gd-native-ttf    GD: Enable TrueType string function], no, no)
+[  --enable-gd-native-ttf  GD: Enable TrueType string function], no, no)
 
 PHP_ARG_ENABLE(gd-jis-conv, whether to enable JIS-mapped Japanese font support in GD,
-[  --enable-gd-jis-conv      GD: Enable JIS-mapped Japanese font support], no, no)
+[  --enable-gd-jis-conv    GD: Enable JIS-mapped Japanese font support], no, no)
 
 dnl
 dnl Checks for the configure options
@@ -185,30 +185,25 @@ AC_DEFUN([PHP_GD_FREETYPE2],[
   if test "$PHP_FREETYPE_DIR" != "no"; then
 
     for i in $PHP_FREETYPE_DIR /usr/local /usr; do
-      if test -f "$i/include/freetype2/freetype/freetype.h"; then
+      if test -f "$i/bin/freetype-config"; then
         FREETYPE2_DIR=$i
-        FREETYPE2_INC_DIR=$i/include/freetype2
+        FREETYPE2_CONFIG="$i/bin/freetype-config"
         break
       fi
     done
 
     if test -z "$FREETYPE2_DIR"; then
-      AC_MSG_ERROR([freetype.h not found.])
+      AC_MSG_ERROR([freetype-config not found.])
     fi
 
-    PHP_CHECK_LIBRARY(freetype, FT_New_Face,
-    [
-      PHP_ADD_LIBRARY_WITH_PATH(freetype, $FREETYPE2_DIR/$PHP_LIBDIR, GD_SHARED_LIBADD)
-      PHP_ADD_INCLUDE($FREETYPE2_DIR/include)
-      PHP_ADD_INCLUDE($FREETYPE2_INC_DIR)
-      AC_DEFINE(USE_GD_IMGSTRTTF, 1, [ ])
-      AC_DEFINE(HAVE_LIBFREETYPE,1,[ ])
-      AC_DEFINE(ENABLE_GD_TTF,1,[ ])
-    ],[
-      AC_MSG_ERROR([Problem with freetype.(a|so). Please check config.log for more information.])
-    ],[
-      -L$FREETYPE2_DIR/$PHP_LIBDIR
-    ])
+    FREETYPE2_CFLAGS=`$FREETYPE2_CONFIG --cflags`
+    FREETYPE2_LIBS=`$FREETYPE2_CONFIG --libs`
+
+    PHP_EVAL_INCLINE($FREETYPE2_CFLAGS)
+    PHP_EVAL_LIBLINE($FREETYPE2_LIBS, GD_SHARED_LIBADD)
+    AC_DEFINE(USE_GD_IMGSTRTTF, 1, [ ])
+    AC_DEFINE(HAVE_LIBFREETYPE,1,[ ])
+    AC_DEFINE(ENABLE_GD_TTF,1,[ ])
   else
     AC_MSG_RESULT([If configure fails try --with-freetype-dir=<DIR>])
   fi
@@ -256,6 +251,7 @@ AC_DEFUN([PHP_GD_CHECK_VERSION],[
   PHP_CHECK_LIBRARY(gd, gdImageCreateFromJpeg,  [AC_DEFINE(HAVE_GD_JPG,              1, [ ])], [], [ $GD_SHARED_LIBADD ])
   PHP_CHECK_LIBRARY(gd, gdImageCreateFromXpm,   [AC_DEFINE(HAVE_GD_XPM,              1, [ ])], [], [ $GD_SHARED_LIBADD ])
   PHP_CHECK_LIBRARY(gd, gdImageStringFT,        [AC_DEFINE(HAVE_GD_FREETYPE,         1, [ ])], [], [ $GD_SHARED_LIBADD ])
+  PHP_CHECK_LIBRARY(gd, gdVersionString,        [AC_DEFINE(HAVE_GD_LIBVERSION,       1, [ ])], [], [ $GD_SHARED_LIBADD ])
 ])
 
 dnl

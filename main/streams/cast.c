@@ -2,7 +2,7 @@
    +----------------------------------------------------------------------+
    | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2013 The PHP Group                                |
+   | Copyright (c) 1997-2015 The PHP Group                                |
    +----------------------------------------------------------------------+
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
@@ -33,7 +33,7 @@
 #if defined(HAVE_FUNOPEN) && !defined(HAVE_FOPENCOOKIE)
 
 /* NetBSD 6.0+ uses off_t instead of fpos_t in funopen */
-# if defined(__NetBSD__) && (__NetBSD_Version__ > 600000000)
+# if defined(__NetBSD__) && (__NetBSD_Version__ >= 600000000)
 #  define PHP_FPOS_T off_t
 # else
 #  define PHP_FPOS_T fpos_t

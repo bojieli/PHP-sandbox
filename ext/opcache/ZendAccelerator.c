@@ -2,7 +2,7 @@
    +----------------------------------------------------------------------+
    | Zend OPcache                                                         |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1998-2013 The PHP Group                                |
+   | Copyright (c) 1998-2015 The PHP Group                                |
    +----------------------------------------------------------------------+
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
@@ -36,7 +36,11 @@
 #include "main/php_open_temporary_file.h"
 #include "zend_API.h"
 #include "zend_ini.h"
-#include "TSRM/tsrm_virtual_cwd.h"
+#if ZEND_EXTENSION_API_NO > PHP_5_5_X_API_NO
+# include "zend_virtual_cwd.h"
+#else
+# include "TSRM/tsrm_virtual_cwd.h"
+#endif
 #include "zend_accelerator_util_funcs.h"
 #include "zend_accelerator_hash.h"
 
@@ -338,6 +342,7 @@ const char *accel_new_interned_string(const char *arKey, int nKeyLength, int fre
 	if (ZCSG(interned_strings_top) + ZEND_MM_ALIGNED_SIZE(sizeof(Bucket) + nKeyLength) >=
 	    ZCSG(interned_strings_end)) {
 	    /* no memory, return the same non-interned string */
+		zend_accel_error(ACCEL_LOG_WARNING, "Interned string buffer overflow");
 		return arKey;
 	}
 
@@ -386,6 +391,11 @@ const char *accel_new_interned_string(const char *arKey, int nKeyLength, int fre
 static void accel_use_shm_interned_strings(TSRMLS_D)
 {
 	Bucket *p, *q;
+
+#if ZEND_EXTENSION_API_NO > PHP_5_5_X_API_NO
+	/* empty string */
+	CG(interned_empty_string) = accel_new_interned_string("", sizeof(""), 0 TSRMLS_CC);
+#endif
 
 	/* function table hash keys */
 	p = CG(function_table)->pListHead;
@@ -572,7 +582,7 @@ static inline void kill_all_lockers(struct flock *mem_usage_check)
 	ZCSG(force_restart_time) = 0;
 	while (mem_usage_check->l_pid > 0) {
 		while (tries--) {
-			zend_accel_error(ACCEL_LOG_INFO, "Killed locker %d", mem_usage_check->l_pid);
+			zend_accel_error(ACCEL_LOG_ERROR, "Killed locker %d", mem_usage_check->l_pid);
 			if (kill(mem_usage_check->l_pid, SIGKILL)) {
 				break;
 			}
@@ -585,7 +595,7 @@ static inline void kill_all_lockers(struct flock *mem_usage_check)
 			usleep(10000);
 		}
 		if (!tries) {
-			zend_accel_error(ACCEL_LOG_INFO, "Can't kill %d after 20 tries!", mem_usage_check->l_pid);
+			zend_accel_error(ACCEL_LOG_ERROR, "Can't kill %d after 20 tries!", mem_usage_check->l_pid);
 			ZCSG(force_restart_time) = time(NULL); /* restore forced restart request */
 		}
 
@@ -877,15 +887,15 @@ static inline int do_validate_timestamps(zend_persistent_script *persistent_scri
 	return FAILURE;
 }
 
-static inline int validate_timestamp_and_record(zend_persistent_script *persistent_script, zend_file_handle *file_handle TSRMLS_DC)
+int validate_timestamp_and_record(zend_persistent_script *persistent_script, zend_file_handle *file_handle TSRMLS_DC)
 {
 	if (ZCG(accel_directives).revalidate_freq &&
-	    (persistent_script->dynamic_members.revalidate >= ZCSG(revalidate_at))) {
+	    persistent_script->dynamic_members.revalidate >= ZCG(request_time)) {
 		return SUCCESS;
 	} else if (do_validate_timestamps(persistent_script, file_handle TSRMLS_CC) == FAILURE) {
 		return FAILURE;
 	} else {
-		persistent_script->dynamic_members.revalidate = ZCSG(revalidate_at);
+		persistent_script->dynamic_members.revalidate = ZCG(request_time) + ZCG(accel_directives).revalidate_freq;
 		return SUCCESS;
 	}
 }
@@ -1062,6 +1072,10 @@ int zend_accel_invalidate(const char *filename, int filename_len, zend_bool forc
 	realpath = accelerator_orig_zend_resolve_path(filename, filename_len TSRMLS_CC);
 #endif
 
+	if (!realpath) {
+		return FAILURE;
+	}
+
 	persistent_script = zend_accel_hash_find(&ZCSG(hash), realpath, strlen(realpath) + 1);
 	if (persistent_script && !persistent_script->corrupted) {
 		zend_file_handle file_handle;
@@ -1108,7 +1122,9 @@ static void zend_accel_add_key(char *key, unsigned int key_length, zend_accel_ha
 			char *new_key = zend_shared_alloc(key_length + 1);
 			if (new_key) {
 				memcpy(new_key, key, key_length + 1);
-				zend_accel_hash_update(&ZCSG(hash), new_key, key_length + 1, 1, bucket);
+				if (zend_accel_hash_update(&ZCSG(hash), new_key, key_length + 1, 1, bucket)) {
+					zend_accel_error(ACCEL_LOG_INFO, "Added key '%s'", new_key);
+				}
 			} else {
 				zend_accel_schedule_restart_if_necessary(ACCEL_RESTART_OOM TSRMLS_CC);
 			}
@@ -1123,6 +1139,10 @@ static zend_persistent_script *cache_script_in_shared_memory(zend_persistent_scr
 
 	/* Check if script may be stored in shared memory */
 	if (!zend_accel_script_persistable(new_persistent_script)) {
+		return new_persistent_script;
+	}
+
+	if (!zend_accel_script_optimize(new_persistent_script TSRMLS_CC)) {
 		return new_persistent_script;
 	}
 
@@ -1149,8 +1169,9 @@ static zend_persistent_script *cache_script_in_shared_memory(zend_persistent_scr
 		zend_persistent_script *existing_persistent_script = (zend_persistent_script *)bucket->data;
 
 		if (!existing_persistent_script->corrupted) {
-			if (!ZCG(accel_directives).validate_timestamps ||
-			    (new_persistent_script->timestamp == existing_persistent_script->timestamp)) {
+			if (!ZCG(accel_directives).revalidate_path &&
+			    (!ZCG(accel_directives).validate_timestamps ||
+			     (new_persistent_script->timestamp == existing_persistent_script->timestamp))) {
 				zend_accel_add_key(key, key_length, bucket TSRMLS_CC);
 			}
 			zend_shared_alloc_unlock(TSRMLS_C);
@@ -1191,14 +1212,21 @@ static zend_persistent_script *cache_script_in_shared_memory(zend_persistent_scr
 
 	/* store script structure in the hash table */
 	bucket = zend_accel_hash_update(&ZCSG(hash), new_persistent_script->full_path, new_persistent_script->full_path_len + 1, 0, new_persistent_script);
-	if (bucket &&
-	    (new_persistent_script->full_path_len != key_length ||
-	     memcmp(new_persistent_script->full_path, key, key_length) != 0)) {
-		/* link key to the same persistent script in hash table */
-		if (!zend_accel_hash_update(&ZCSG(hash), key, key_length + 1, 1, bucket)) {
-			zend_accel_error(ACCEL_LOG_DEBUG, "No more entries in hash table!");
-			ZSMMG(memory_exhausted) = 1;
-			zend_accel_schedule_restart_if_necessary(ACCEL_RESTART_HASH TSRMLS_CC);
+	if (bucket) {
+		zend_accel_error(ACCEL_LOG_INFO, "Cached script '%s'", new_persistent_script->full_path);
+		if (!ZCG(accel_directives).revalidate_path &&
+		    /* key may contain non-persistent PHAR aliases (see issues #115 and #149) */
+		    memcmp(key, "phar://", sizeof("phar://") - 1) != 0 &&
+		    (new_persistent_script->full_path_len != key_length ||
+		     memcmp(new_persistent_script->full_path, key, key_length) != 0)) {
+			/* link key to the same persistent script in hash table */
+			if (zend_accel_hash_update(&ZCSG(hash), key, key_length + 1, 1, bucket)) {
+				zend_accel_error(ACCEL_LOG_INFO, "Added key '%s'", key);
+			} else {
+				zend_accel_error(ACCEL_LOG_DEBUG, "No more entries in hash table!");
+				ZSMMG(memory_exhausted) = 1;
+				zend_accel_schedule_restart_if_necessary(ACCEL_RESTART_HASH TSRMLS_CC);
+			}
 		}
 	}
 
@@ -1308,24 +1336,9 @@ static zend_persistent_script *compile_and_cache_file(zend_file_handle *file_han
 		return NULL;
 	}
 
-#if ZEND_EXTENSION_API_NO >= PHP_5_3_X_API_NO
-	if (file_handle->type == ZEND_HANDLE_STREAM &&
-	    (!strstr(file_handle->filename, ".phar") ||
-	     strstr(file_handle->filename, "://"))) {
-		char *buf;
-		size_t size;
-
-		/* Stream callbacks needs to be called in context of original
-		 * function and class tables (see: https://bugs.php.net/bug.php?id=64353)
-		 */
-		if (zend_stream_fixup(file_handle, &buf, &size TSRMLS_CC) == FAILURE) {
-			*op_array_p = NULL;
-			return NULL;
-		}
-	}
-#endif
-
-	if (ZCG(accel_directives).validate_timestamps || ZCG(accel_directives).max_file_size > 0) {
+	if (ZCG(accel_directives).validate_timestamps ||
+	    ZCG(accel_directives).file_update_protection ||
+	    ZCG(accel_directives).max_file_size > 0) {
 		size_t size = 0;
 
 		/* Obtain the file timestamps, *before* actually compiling them,
@@ -1337,6 +1350,13 @@ static zend_persistent_script *compile_and_cache_file(zend_file_handle *file_han
 		 *  we won't cache it
 		 */
 		if (timestamp == 0) {
+			*op_array_p = accelerator_orig_compile_file(file_handle, type TSRMLS_CC);
+			return NULL;
+		}
+
+		/* check if file is too new (may be it's not written completely yet) */
+		if (ZCG(accel_directives).file_update_protection &&
+		    (ZCG(request_time) - ZCG(accel_directives).file_update_protection < timestamp)) {
 			*op_array_p = accelerator_orig_compile_file(file_handle, type TSRMLS_CC);
 			return NULL;
 		}
@@ -1425,7 +1445,7 @@ static zend_persistent_script *compile_and_cache_file(zend_file_handle *file_han
 		 * otherwise we have a race-condition.
 		 */
 		new_persistent_script->timestamp = timestamp;
-		new_persistent_script->dynamic_members.revalidate = ZCSG(revalidate_at);
+		new_persistent_script->dynamic_members.revalidate = ZCG(request_time) + ZCG(accel_directives).revalidate_freq;
 	}
 
 	if (file_handle->opened_path) {
@@ -1442,7 +1462,7 @@ static zend_persistent_script *compile_and_cache_file(zend_file_handle *file_han
 }
 
 /* zend_compile() replacement */
-static zend_op_array *persistent_compile_file(zend_file_handle *file_handle, int type TSRMLS_DC)
+zend_op_array *persistent_compile_file(zend_file_handle *file_handle, int type TSRMLS_DC)
 {
 	zend_persistent_script *persistent_script = NULL;
 	char *key = NULL;
@@ -1647,7 +1667,18 @@ static zend_op_array *persistent_compile_file(zend_file_handle *file_handle, int
 #endif
 				void *dummy = (void *) 1;
 
-				zend_hash_quick_add(&EG(included_files), persistent_script->full_path, persistent_script->full_path_len + 1, persistent_script->hash_value, &dummy, sizeof(void *), NULL);
+				if (zend_hash_quick_add(&EG(included_files), persistent_script->full_path, persistent_script->full_path_len + 1, persistent_script->hash_value, &dummy, sizeof(void *), NULL) == SUCCESS) {
+					/* ext/phar has to load phar's metadata into memory */
+					if (strstr(persistent_script->full_path, ".phar") && !strstr(persistent_script->full_path, "://")) {
+						php_stream_statbuf ssb;
+						char *fname = emalloc(sizeof("phar://") + persistent_script->full_path_len);
+
+						memcpy(fname, "phar://", sizeof("phar://") - 1);
+						memcpy(fname + sizeof("phar://") - 1, persistent_script->full_path, persistent_script->full_path_len + 1);
+						php_stream_stat_path(fname, &ssb);
+						efree(fname);
+					}
+				}
 			}
 		}
 #if ZEND_EXTENSION_API_NO < PHP_5_3_X_API_NO
@@ -1676,17 +1707,23 @@ static zend_op_array *persistent_compile_file(zend_file_handle *file_handle, int
 static char *accel_tsrm_realpath(const char *path, int path_len TSRMLS_DC)
 {
 	cwd_state new_state;
+#if ZEND_EXTENSION_API_NO < PHP_5_6_X_API_NO
 	char *real_path;
+#endif
 	char *cwd;
 	int cwd_len;
 
 	/* realpath("") returns CWD */
 	if (!*path) {
+#if ZEND_EXTENSION_API_NO > PHP_5_5_X_API_NO
+		new_state.cwd = (char*)emalloc(1);
+#else
 		new_state.cwd = (char*)malloc(1);
 		if (!new_state.cwd) {
 			zend_accel_error(ACCEL_LOG_ERROR, "malloc() failed");
 			return NULL;
 		}
+#endif
 		new_state.cwd[0] = '\0';
 		new_state.cwd_length = 0;
 	    if ((cwd = accel_getcwd(&cwd_len TSRMLS_CC)) != NULL) {
@@ -1694,18 +1731,26 @@ static char *accel_tsrm_realpath(const char *path, int path_len TSRMLS_DC)
 		}
 	} else if (!IS_ABSOLUTE_PATH(path, path_len) &&
 	    (cwd = accel_getcwd(&cwd_len TSRMLS_CC)) != NULL) {
+#if ZEND_EXTENSION_API_NO > PHP_5_5_X_API_NO
+		new_state.cwd = estrndup(cwd, cwd_len);
+#else
 		new_state.cwd = zend_strndup(cwd, cwd_len);
 		if (!new_state.cwd) {
 			zend_accel_error(ACCEL_LOG_ERROR, "malloc() failed");
 			return NULL;
 		}
+#endif
 		new_state.cwd_length = cwd_len;
 	} else {
+#if ZEND_EXTENSION_API_NO > PHP_5_5_X_API_NO
+		new_state.cwd = (char*)emalloc(1);
+#else
 		new_state.cwd = (char*)malloc(1);
 		if (!new_state.cwd) {
 			zend_accel_error(ACCEL_LOG_ERROR, "malloc() failed");
 			return NULL;
 		}
+#endif
 		new_state.cwd[0] = '\0';
 		new_state.cwd_length = 0;
 	}
@@ -1714,14 +1759,22 @@ static char *accel_tsrm_realpath(const char *path, int path_len TSRMLS_DC)
 # define CWD_REALPATH 2
 #endif
 	if (virtual_file_ex(&new_state, path, NULL, CWD_REALPATH)) {
+#if ZEND_EXTENSION_API_NO > PHP_5_5_X_API_NO
+		efree(new_state.cwd);
+#else
 		free(new_state.cwd);
+#endif
 		return NULL;
 	}
 
+#if ZEND_EXTENSION_API_NO > PHP_5_5_X_API_NO
+	return new_state.cwd;
+#else
 	real_path = emalloc(new_state.cwd_length + 1);
 	memcpy(real_path, new_state.cwd, new_state.cwd_length + 1);
 	free(new_state.cwd);
 	return real_path;
+#endif
 }
 
 static char *accel_php_resolve_path(const char *filename, int filename_length, const char *path TSRMLS_DC)
@@ -2101,7 +2154,9 @@ static void accel_activate(void)
 				}
 
 #if (ZEND_EXTENSION_API_NO > PHP_5_3_X_API_NO) && !defined(ZTS)
-				accel_interned_strings_restore_state(TSRMLS_C);
+				if (ZCG(accel_directives).interned_strings_buffer) {
+					accel_interned_strings_restore_state(TSRMLS_C);
+				}
 #endif
 
 				zend_shared_alloc_restore_state();
@@ -2116,13 +2171,6 @@ static void accel_activate(void)
 	/* check if ZCG(function_table) wasn't somehow polluted on the way */
 	if (ZCG(internal_functions_count) != zend_hash_num_elements(&ZCG(function_table))) {
 		zend_accel_error(ACCEL_LOG_WARNING, "Internal functions count changed - was %d, now %d", ZCG(internal_functions_count), zend_hash_num_elements(&ZCG(function_table)));
-	}
-
-	if (ZCG(accel_directives).validate_timestamps) {
-		time_t now = ZCG(request_time);
-		if (now > ZCSG(revalidate_at) + (time_t)ZCG(accel_directives).revalidate_freq) {
-			ZCSG(revalidate_at) = now;
-		}
 	}
 
 	ZCG(cwd) = NULL;
@@ -2159,11 +2207,15 @@ static void accel_fast_zval_ptr_dtor(zval **zval_ptr)
 #else
 		switch (Z_TYPE_P(zvalue) & ~IS_CONSTANT_INDEX) {
 #endif
-			case IS_ARRAY:
-			case IS_CONSTANT_ARRAY: {
+#if ZEND_EXTENSION_API_NO <= PHP_5_5_API_NO
+			case IS_CONSTANT_ARRAY:
+#endif
+			case IS_ARRAY: {
 					TSRMLS_FETCH();
 
+#if ZEND_EXTENSION_API_NO >= PHP_5_3_X_API_NO
 					GC_REMOVE_ZVAL_FROM_BUFFER(zvalue);
+#endif
 					if (zvalue->value.ht && (zvalue->value.ht != &EG(symbol_table))) {
 						/* break possible cycles */
 						Z_TYPE_P(zvalue) = IS_NULL;
@@ -2176,7 +2228,9 @@ static void accel_fast_zval_ptr_dtor(zval **zval_ptr)
 				{
 					TSRMLS_FETCH();
 
+#if ZEND_EXTENSION_API_NO >= PHP_5_3_X_API_NO
 					GC_REMOVE_ZVAL_FROM_BUFFER(zvalue);
+#endif
 					Z_OBJ_HT_P(zvalue)->del_ref(zvalue TSRMLS_CC);
 				}
 				break;
@@ -2399,14 +2453,14 @@ static inline int accel_find_sapi(TSRMLS_D)
 	return FAILURE;
 }
 
-static void zend_accel_init_shm(TSRMLS_D)
+static int zend_accel_init_shm(TSRMLS_D)
 {
 	zend_shared_alloc_lock(TSRMLS_C);
 
 	accel_shared_globals = zend_shared_alloc(sizeof(zend_accel_shared_globals));
 	if (!accel_shared_globals) {
 		zend_accel_error(ACCEL_LOG_FATAL, "Insufficient shared memory!");
-		return;
+		return FAILURE;
 	}
 	ZSMMG(app_shared_globals) = accel_shared_globals;
 
@@ -2415,35 +2469,39 @@ static void zend_accel_init_shm(TSRMLS_D)
 
 #if ZEND_EXTENSION_API_NO > PHP_5_3_X_API_NO
 
+	ZCSG(interned_strings_start) = ZCSG(interned_strings_end) = NULL;
 # ifndef ZTS
 	zend_hash_init(&ZCSG(interned_strings), (ZCG(accel_directives).interned_strings_buffer * 1024 * 1024) / (sizeof(Bucket) + sizeof(Bucket*) + 8 /* average string length */), NULL, NULL, 1);
-	ZCSG(interned_strings).nTableMask = ZCSG(interned_strings).nTableSize - 1;
-	ZCSG(interned_strings).arBuckets = zend_shared_alloc(ZCSG(interned_strings).nTableSize * sizeof(Bucket *));
-	ZCSG(interned_strings_start) = zend_shared_alloc((ZCG(accel_directives).interned_strings_buffer * 1024 * 1024));
-	if (!ZCSG(interned_strings).arBuckets || !ZCSG(interned_strings_start)) {
-		zend_error(E_ERROR, ACCELERATOR_PRODUCT_NAME " cannot allocate buffer for interned strings");
+	if (ZCG(accel_directives).interned_strings_buffer) {
+		ZCSG(interned_strings).nTableMask = ZCSG(interned_strings).nTableSize - 1;
+		ZCSG(interned_strings).arBuckets = zend_shared_alloc(ZCSG(interned_strings).nTableSize * sizeof(Bucket *));
+		ZCSG(interned_strings_start) = zend_shared_alloc((ZCG(accel_directives).interned_strings_buffer * 1024 * 1024));
+		if (!ZCSG(interned_strings).arBuckets || !ZCSG(interned_strings_start)) {
+			zend_accel_error(ACCEL_LOG_FATAL, ACCELERATOR_PRODUCT_NAME " cannot allocate buffer for interned strings");
+			return FAILURE;
+		}
+		ZCSG(interned_strings_end)   = ZCSG(interned_strings_start) + (ZCG(accel_directives).interned_strings_buffer * 1024 * 1024);
+		ZCSG(interned_strings_top)   = ZCSG(interned_strings_start);
+
+		orig_interned_strings_start = CG(interned_strings_start);
+		orig_interned_strings_end = CG(interned_strings_end);
+		CG(interned_strings_start) = ZCSG(interned_strings_start);
+		CG(interned_strings_end) = ZCSG(interned_strings_end);
 	}
-	ZCSG(interned_strings_end)   = ZCSG(interned_strings_start) + (ZCG(accel_directives).interned_strings_buffer * 1024 * 1024);
-	ZCSG(interned_strings_top)   = ZCSG(interned_strings_start);
-# else
-	ZCSG(interned_strings_start) = ZCSG(interned_strings_end) = NULL;
 # endif
 
-	orig_interned_strings_start = CG(interned_strings_start);
-	orig_interned_strings_end = CG(interned_strings_end);
 	orig_new_interned_string = zend_new_interned_string;
 	orig_interned_strings_snapshot = zend_interned_strings_snapshot;
 	orig_interned_strings_restore = zend_interned_strings_restore;
-
-	CG(interned_strings_start) = ZCSG(interned_strings_start);
-	CG(interned_strings_end) = ZCSG(interned_strings_end);
 	zend_new_interned_string = accel_new_interned_string_for_php;
 	zend_interned_strings_snapshot = accel_interned_strings_snapshot_for_php;
 	zend_interned_strings_restore = accel_interned_strings_restore_for_php;
 
 # ifndef ZTS
-	accel_use_shm_interned_strings(TSRMLS_C);
-	accel_interned_strings_save_state(TSRMLS_C);
+	if (ZCG(accel_directives).interned_strings_buffer) {
+		accel_use_shm_interned_strings(TSRMLS_C);
+		accel_interned_strings_save_state(TSRMLS_C);
+	}
 # endif
 
 #endif
@@ -2460,6 +2518,8 @@ static void zend_accel_init_shm(TSRMLS_D)
 	ZCSG(restart_in_progress) = 0;
 
 	zend_shared_alloc_unlock(TSRMLS_C);
+
+	return SUCCESS;
 }
 
 static void accel_globals_ctor(zend_accel_globals *accel_globals TSRMLS_DC)
@@ -2517,7 +2577,10 @@ static int accel_startup(zend_extension *extension)
 /********************************************/
 	switch (zend_shared_alloc_startup(ZCG(accel_directives).memory_consumption)) {
 		case ALLOC_SUCCESS:
-			zend_accel_init_shm(TSRMLS_C);
+			if (zend_accel_init_shm(TSRMLS_C) == FAILURE) {
+				accel_startup_ok = 0;
+				return FAILURE;
+			}
 			break;
 		case ALLOC_FAILURE:
 			accel_startup_ok = 0;
@@ -2571,10 +2634,6 @@ static int accel_startup(zend_extension *extension)
 	accelerator_orig_zend_resolve_path = zend_resolve_path;
 	zend_resolve_path = persistent_zend_resolve_path;
 #endif
-
-	if (ZCG(accel_directives).validate_timestamps) {
-		ZCSG(revalidate_at) = zend_accel_get_time() + ZCG(accel_directives).revalidate_freq;
-	}
 
 	/* Override chdir() function */
 	if (zend_hash_find(CG(function_table), "chdir", sizeof("chdir"), (void**)&func) == SUCCESS &&
@@ -2652,12 +2711,9 @@ static void accel_free_ts_resources()
 #endif
 }
 
-static void accel_shutdown(zend_extension *extension)
+void accel_shutdown(TSRMLS_D)
 {
 	zend_ini_entry *ini_entry;
-	TSRMLS_FETCH();
-
-	(void)extension; /* keep the compiler happy */
 
 	zend_accel_blacklist_shutdown(&accel_blacklist);
 
@@ -2666,6 +2722,21 @@ static void accel_shutdown(zend_extension *extension)
 		return;
 	}
 
+#if ZEND_EXTENSION_API_NO > PHP_5_3_X_API_NO
+	if (ZCG(accel_directives).interned_strings_buffer) {
+# ifndef ZTS
+		zend_hash_clean(CG(function_table));
+		zend_hash_clean(CG(class_table));
+		zend_hash_clean(EG(zend_constants));
+# endif
+		CG(interned_strings_start) = orig_interned_strings_start;
+		CG(interned_strings_end) = orig_interned_strings_end;
+	}
+	zend_new_interned_string = orig_new_interned_string;
+	zend_interned_strings_snapshot = orig_interned_strings_snapshot;
+	zend_interned_strings_restore = orig_interned_strings_restore;
+#endif
+
 	accel_free_ts_resources();
 	zend_shared_alloc_shutdown();
 	zend_compile_file = accelerator_orig_compile_file;
@@ -2673,15 +2744,6 @@ static void accel_shutdown(zend_extension *extension)
 	if (zend_hash_find(EG(ini_directives), "include_path", sizeof("include_path"), (void **) &ini_entry) == SUCCESS) {
 		ini_entry->on_modify = orig_include_path_on_modify;
 	}
-
-#if ZEND_EXTENSION_API_NO > PHP_5_3_X_API_NO
-	CG(interned_strings_start) = orig_interned_strings_start;
-	CG(interned_strings_end) = orig_interned_strings_end;
-	zend_new_interned_string = orig_new_interned_string;
-	zend_interned_strings_snapshot = orig_interned_strings_snapshot;
-	zend_interned_strings_restore = orig_interned_strings_restore;
-#endif
-
 }
 
 void zend_accel_schedule_restart(zend_accel_restart_reason reason TSRMLS_DC)
@@ -2692,6 +2754,7 @@ void zend_accel_schedule_restart(zend_accel_restart_reason reason TSRMLS_DC)
 	}
 	zend_accel_error(ACCEL_LOG_DEBUG, "Restart Scheduled!");
 
+	SHM_UNPROTECT();
 	ZCSG(restart_pending) = 1;
 	ZCSG(restart_reason) = reason;
 	ZCSG(cache_status_before_restart) = ZCSG(accelerator_enabled);
@@ -2702,6 +2765,7 @@ void zend_accel_schedule_restart(zend_accel_restart_reason reason TSRMLS_DC)
 	} else {
 		ZCSG(force_restart_time) = 0;
 	}
+	SHM_PROTECT();
 }
 
 /* this is needed because on WIN32 lock is not decreased unless ZCG(counted) is set */
@@ -2744,31 +2808,18 @@ void accelerator_shm_read_unlock(TSRMLS_D)
 	}
 }
 
-static void accel_op_array_handler(zend_op_array *op_array)
-{
-	TSRMLS_FETCH();
-
-	if (ZCG(enabled) &&
-	    accel_startup_ok &&
-	    ZCSG(accelerator_enabled) &&
-	    !ZSMMG(memory_exhausted) &&
-	    !ZCSG(restart_pending)) {
-		zend_optimizer(op_array TSRMLS_CC);
-	}
-}
-
 ZEND_EXT_API zend_extension zend_extension_entry = {
 	ACCELERATOR_PRODUCT_NAME,               /* name */
 	ACCELERATOR_VERSION,					/* version */
 	"Zend Technologies",					/* author */
 	"http://www.zend.com/",					/* URL */
-	"Copyright (c) 1999-2013",				/* copyright */
+	"Copyright (c) 1999-2015",				/* copyright */
 	accel_startup,					   		/* startup */
-	accel_shutdown,							/* shutdown */
+	NULL,									/* shutdown */
 	accel_activate,							/* per-script activation */
 	accel_deactivate,						/* per-script deactivation */
 	NULL,									/* message handler */
-	accel_op_array_handler,					/* op_array handler */
+	NULL,									/* op_array handler */
 	NULL,									/* extended statement handler */
 	NULL,									/* extended fcall begin handler */
 	NULL,									/* extended fcall end handler */

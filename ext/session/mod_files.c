@@ -2,7 +2,7 @@
    +----------------------------------------------------------------------+
    | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2013 The PHP Group                                |
+   | Copyright (c) 1997-2015 The PHP Group                                |
    +----------------------------------------------------------------------+
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
@@ -50,6 +50,12 @@
 
 #define FILE_PREFIX "sess_"
 
+#ifdef PHP_WIN32
+# ifndef O_NOFOLLOW
+#  define O_NOFOLLOW 0
+# endif
+#endif
+
 typedef struct {
 	int fd;
 	char *lastkey;
@@ -61,40 +67,9 @@ typedef struct {
 } ps_files;
 
 ps_module ps_mod_files = {
-	PS_MOD(files)
+	PS_MOD_SID(files)
 };
 
-/* If you change the logic here, please also update the error message in
- * ps_files_open() appropriately */
-static int ps_files_valid_key(const char *key)
-{
-	size_t len;
-	const char *p;
-	char c;
-	int ret = 1;
-
-	for (p = key; (c = *p); p++) {
-		/* valid characters are a..z,A..Z,0..9 */
-		if (!((c >= 'a' && c <= 'z')
-				|| (c >= 'A' && c <= 'Z')
-				|| (c >= '0' && c <= '9')
-				|| c == ','
-				|| c == '-')) {
-			ret = 0;
-			break;
-		}
-	}
-
-	len = p - key;
-
-	/* Somewhat arbitrary length limit here, but should be way more than
-	   anyone needs and avoids file-level warnings later on if we exceed MAX_PATH */
-	if (len == 0 || len > 128) {
-		ret = 0;
-	}
-
-	return ret;
-}
 
 static char *ps_files_path_create(char *buf, size_t buflen, ps_files *data, const char *key)
 {
@@ -146,6 +121,8 @@ static void ps_files_close(ps_files *data)
 static void ps_files_open(ps_files *data, const char *key TSRMLS_DC)
 {
 	char buf[MAXPATHLEN];
+	struct stat sbuf;
+	int ret;
 
 	if (data->fd < 0 || !data->lastkey || strcmp(key, data->lastkey)) {
 		if (data->lastkey) {
@@ -155,36 +132,42 @@ static void ps_files_open(ps_files *data, const char *key TSRMLS_DC)
 
 		ps_files_close(data);
 
-		if (!ps_files_valid_key(key)) {
+		if (php_session_valid_key(key) == FAILURE) {
 			php_error_docref(NULL TSRMLS_CC, E_WARNING, "The session id is too long or contains illegal characters, valid characters are a-z, A-Z, 0-9 and '-,'");
-			PS(invalid_session_id) = 1;
 			return;
 		}
+
 		if (!ps_files_path_create(buf, sizeof(buf), data, key)) {
 			return;
 		}
 
 		data->lastkey = estrdup(key);
 
+		/* O_NOFOLLOW to prevent us from following evil symlinks */
+#ifdef O_NOFOLLOW
+		data->fd = VCWD_OPEN_MODE(buf, O_CREAT | O_RDWR | O_BINARY | O_NOFOLLOW, data->filemode);
+#else
+		/* Check to make sure that the opened file is not outside of allowable dirs. 
+		   This is not 100% safe but it's hard to do something better without O_NOFOLLOW */
+		if(PG(open_basedir) && lstat(buf, &sbuf) == 0 && S_ISLNK(sbuf.st_mode) && php_check_open_basedir(buf TSRMLS_CC)) {
+			return;
+		}
 		data->fd = VCWD_OPEN_MODE(buf, O_CREAT | O_RDWR | O_BINARY, data->filemode);
+#endif
 
 		if (data->fd != -1) {
 #ifndef PHP_WIN32
-			/* check to make sure that the opened file is not a symlink, linking to data outside of allowable dirs */
-			if (PG(open_basedir)) {
-				struct stat sbuf;
-
-				if (fstat(data->fd, &sbuf)) {
-					close(data->fd);
-					return;
-				}
-				if (S_ISLNK(sbuf.st_mode) && php_check_open_basedir(buf TSRMLS_CC)) {
-					close(data->fd);
-					return;
-				}
+			/* check that this session file was created by us or root – we
+			   don't want to end up accepting the sessions of another webapp */
+			if (fstat(data->fd, &sbuf) || (sbuf.st_uid != 0 && sbuf.st_uid != getuid() && sbuf.st_uid != geteuid())) {
+				close(data->fd);
+				data->fd = -1;
+				return;
 			}
 #endif
-			flock(data->fd, LOCK_EX);
+			do {
+				ret = flock(data->fd, LOCK_EX);
+			} while (ret == -1 && errno == EINTR);
 
 #ifdef F_SETFD
 # ifndef FD_CLOEXEC
@@ -238,7 +221,7 @@ static int ps_files_cleanup_dir(const char *dirname, int maxlifetime TSRMLS_DC)
 				/* NUL terminate it and */
 				buf[dirname_len + entry_len + 1] = '\0';
 
-				/* check whether its last access was more than maxlifet ago */
+				/* check whether its last access was more than maxlifetime ago */
 				if (VCWD_STAT(buf, &sbuf) == 0 &&
 						(now - sbuf.st_mtime) > maxlifetime) {
 					VCWD_UNLINK(buf);
@@ -252,6 +235,21 @@ static int ps_files_cleanup_dir(const char *dirname, int maxlifetime TSRMLS_DC)
 
 	return (nrdels);
 }
+
+static int ps_files_key_exists(ps_files *data, const char *key TSRMLS_DC)
+{
+	char buf[MAXPATHLEN];
+	struct stat sbuf;
+
+	if (!key || !ps_files_path_create(buf, sizeof(buf), data, key)) {
+		return FAILURE;
+	}
+	if (VCWD_STAT(buf, &sbuf)) {
+		return FAILURE;
+	}
+	return SUCCESS;
+}
+
 
 #define PS_FILES_DATA ps_files *data = PS_GET_MOD_DATA()
 
@@ -327,6 +325,7 @@ PS_CLOSE_FUNC(files)
 
 	if (data->lastkey) {
 		efree(data->lastkey);
+		data->lastkey = NULL;
 	}
 
 	efree(data->basedir);
@@ -342,7 +341,26 @@ PS_READ_FUNC(files)
 	struct stat sbuf;
 	PS_FILES_DATA;
 
-	ps_files_open(data, key TSRMLS_CC);
+	/* If strict mode, check session id existence */
+	if (PS(use_strict_mode) &&
+		ps_files_key_exists(data, key TSRMLS_CC) == FAILURE) {
+		/* key points to PS(id), but cannot change here. */
+		if (key) {
+			efree(PS(id));
+			PS(id) = NULL;
+		}
+		PS(id) = PS(mod)->s_create_sid((void **)&data, NULL TSRMLS_CC);
+		if (!PS(id)) {
+			return FAILURE;
+		}
+		if (PS(use_cookies)) {
+			PS(send_cookie) = 1;
+		}
+		php_session_reset_id(TSRMLS_C);
+		PS(session_status) = php_session_active;
+	}
+
+	ps_files_open(data, PS(id) TSRMLS_CC);
 	if (data->fd < 0) {
 		return FAILURE;
 	}
@@ -453,6 +471,30 @@ PS_GC_FUNC(files)
 
 	return SUCCESS;
 }
+
+PS_CREATE_SID_FUNC(files)
+{
+	char *sid;
+	int maxfail = 3;
+	PS_FILES_DATA;
+
+	do {
+		sid = php_session_create_id((void **)&data, newlen TSRMLS_CC);
+		/* Check collision */
+		if (data && ps_files_key_exists(data, sid TSRMLS_CC) == SUCCESS) {
+			if (sid) {
+				efree(sid);
+				sid = NULL;
+			}
+			if (!(maxfail--)) {
+				return NULL;
+			}
+		}
+	} while(!sid);
+
+	return sid;
+}
+
 
 /*
  * Local variables:
