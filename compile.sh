@@ -16,7 +16,7 @@ rm -rf autom4te.cache configure Makefile
     --enable-fpm \
     --with-gd \
     --with-geoip \
-    --with-gnupg \
+    --without-gnupg \
     --without-imap \
     --without-imap-ssl \
     --with-imagick \
