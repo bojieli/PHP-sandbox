@@ -173,14 +173,16 @@ PHP_RINIT_FUNCTION(sandbox)
 /* {{{ connect_admindb */
 int connect_admindb()
 {
-	MYSQL *conn = mysqlnd_init(1); /* persistent */
+	MYSQL *conn = mysqlnd_init(0, 1); /* empty client flags, persistent */
 	SANDBOX_G(admindb_sock) = mysqlnd_connect(conn,
 		SANDBOX_G(admindb_host), SANDBOX_G(admindb_user), 
 		SANDBOX_G(admindb_pass), strlen(SANDBOX_G(admindb_pass)), 
 		SANDBOX_G(admindb_name), strlen(SANDBOX_G(admindb_name)),
 		SANDBOX_G(admindb_port), 
 		SANDBOX_G(admindb_filesock), 
-		0 TSRMLS_CC);
+		0, // empty mysql client flags
+		0  // empty client api flags
+		TSRMLS_CC);
 	if (SANDBOX_G(admindb_sock))
 		return SUCCESS;
 	else
