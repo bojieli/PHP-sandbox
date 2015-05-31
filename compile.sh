@@ -36,7 +36,6 @@ rm -rf autom4te.cache configure Makefile
     --with-openssl \
     --enable-inline-optimization \
     --enable-inotify \
-    --with-pdflib \
     --with-pdo-mysql \
     --enable-pdo \
     --without-pear \
