@@ -730,6 +730,7 @@ MYSQL* sandbox_mysql_do_connect(char* user, char* passwd, char* host_and_port, c
 	php_mysql_conn *mysql=NULL;
     zend_bool free_host=0, new_link=1;
 	long connect_timeout = MySG(connect_timeout);
+    int persistent=1;
 
 	socket = MySG(default_socket);
 	if (MySG(default_port) < 0) {
@@ -791,7 +792,7 @@ MYSQL* sandbox_mysql_do_connect(char* user, char* passwd, char* host_and_port, c
 #ifndef MYSQL_USE_MYSQLND
 	mysql->conn = mysql_init(NULL);
 #else
-	mysql->conn = mysql_init(0);
+	mysql->conn = mysqlnd_init(MYSQLND_CLIENT_KNOWS_RSET_COPY_DATA, persistent);
 #endif
 	if (!mysql->conn) {
 		MySG(connect_error) = estrdup("OOM");
@@ -805,9 +806,9 @@ MYSQL* sandbox_mysql_do_connect(char* user, char* passwd, char* host_and_port, c
 	}
 
 #ifndef MYSQL_USE_MYSQLND
-	if (mysql_real_connect(mysql->conn, host, user, passwd, dbname, port, socket, client_flags)==NULL)
+	if (mysql_real_connect(mysql->conn, host, user, passwd, dbname, port, socket, mysql_flags, client_flags)==NULL)
 #else
-	if (mysqlnd_connect(mysql->conn, host, user, passwd, strlen(passwd), dbname, strlen(dbname), port, socket, client_flags TSRMLS_CC) == NULL)
+	if (mysqlnd_connect(mysql->conn, host, user, passwd, strlen(passwd), dbname, strlen(dbname), port, socket, client_flags, MYSQLND_CLIENT_KNOWS_RSET_COPY_DATA TSRMLS_CC) == NULL)
 #endif
 	{
 		/* Populate connect error globals so that the error functions can read them */
