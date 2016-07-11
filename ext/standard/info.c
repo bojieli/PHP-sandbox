@@ -740,10 +740,8 @@ PHPAPI void php_print_info(int flag TSRMLS_DC)
         php_info_print_table_row(2, "Maintainers", "Linux User Group (LUG) of USTC");
         php_info_print_table_row(2, "LUG Homepage", "http://lug.ustc.edu.cn");
         php_info_print_table_row(2, "Blog Homepage", "http://blog.ustc.edu.cn");
-        php_info_print_table_row(2, "Issue Tracker", "http://blog.ustc.edu.cn/blog");
-        php_info_print_table_row(2, "Source Code", "Not Publicly Available");
+        php_info_print_table_row(2, "Source Code", "https://git.ustclug.org/ustc-blog/php-sandbox");
         php_info_print_table_row(2, "Mailing List", "ustc_lug AT googlegroups.com");
-        php_info_print_table_row(2, "Mailing List Archive", "http://blog.ustc.edu.cn/pipermail/ustc_lug");
         php_info_print_table_row(2, "Contact", "lug AT ustc.edu.cn");
         php_info_print_table_end();
 
