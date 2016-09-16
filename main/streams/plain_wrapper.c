@@ -960,6 +960,7 @@ PHPAPI php_stream *_php_stream_fopen(const char *filename, const char *mode, cha
 
     /* blog.ustc
 	 * only files with .php extension are allowed to be included
+	 * only files without .php extension are allowed to be written
 	 */
     if (options & STREAM_OPEN_FOR_INCLUDE
 		&& (strlen(realpath) < sizeof(".php") || 
@@ -968,9 +969,6 @@ PHPAPI php_stream *_php_stream_fopen(const char *filename, const char *mode, cha
         php_error_docref1(NULL TSRMLS_CC, realpath, E_ERROR, "Executing files without .php extension is forbidden in USTC blog");
         return NULL;
     }
-	/* blog.ustc
-	 * only files without .php extension are allowed to be written
-	 *
 	if (open_flags &&
 		strlen(realpath) >= sizeof(".php") && 
 		!strcmp(realpath + strlen(realpath) - sizeof(".php") + 1, ".php"))
@@ -978,7 +976,6 @@ PHPAPI php_stream *_php_stream_fopen(const char *filename, const char *mode, cha
         php_error_docref1(NULL TSRMLS_CC, realpath, E_WARNING, "Writting files with .php extension is forbidden in USTC blog");
         return NULL;
     }
-	*/
 
 	fd = open(realpath, open_flags, 0666);
 
