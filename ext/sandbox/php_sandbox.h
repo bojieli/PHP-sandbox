@@ -65,6 +65,8 @@ char* php_get_appname(TSRMLS_DC);
 char* sandbox_get_translated_path(TSRMLS_DC);
 char* php_app_root_url(TSRMLS_DC);
 char* php_app_root_path(TSRMLS_DC);
+int is_in_trusted_code_dir(const char* file TSRMLS_DC);
+int is_in_upload_dir(const char* file TSRMLS_DC);
 
 MYSQL_ROW admindb_fetch_row(const char* table, const char* field, char* value TSRMLS_DC);
 char* admindb_fetch_field(const char* table, const char* getfield, const char* matchfield, char* value TSRMLS_DC);
@@ -123,6 +125,8 @@ ZEND_BEGIN_MODULE_GLOBALS(sandbox)
 	char *admindb_pass;
 	char *chroot_basedir;
 	char *chroot_basedir_peruser;
+	char *trusted_code_dir;
+	char *user_upload_dir;
 	char *hostname_for_subdomain;
 	// module scope
 	MYSQL *admindb_sock;

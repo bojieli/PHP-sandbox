@@ -106,6 +106,8 @@ PHP_INI_BEGIN()
 	STD_PHP_INI_ENTRY("admindb.pass", "", PHP_INI_SYSTEM, OnUpdateString, admindb_pass, zend_sandbox_globals, sandbox_globals)
 	STD_PHP_INI_ENTRY("sandbox.chroot_basedir", "/tmp", PHP_INI_SYSTEM, OnUpdateString, chroot_basedir, zend_sandbox_globals, sandbox_globals)
 	STD_PHP_INI_ENTRY("sandbox.chroot_basedir_peruser", "", PHP_INI_SYSTEM, OnUpdateString, chroot_basedir_peruser, zend_sandbox_globals, sandbox_globals)
+	STD_PHP_INI_ENTRY("sandbox.trusted_code_dir", "", PHP_INI_SYSTEM, OnUpdateString, trusted_code_dir, zend_sandbox_globals, sandbox_globals)
+	STD_PHP_INI_ENTRY("sandbox.user_upload_dir", "", PHP_INI_SYSTEM, OnUpdateString, user_upload_dir, zend_sandbox_globals, sandbox_globals)
 	STD_PHP_INI_ENTRY("sandbox.hostname_for_subdomain", "localhost", PHP_INI_SYSTEM, OnUpdateString, hostname_for_subdomain, zend_sandbox_globals, sandbox_globals)
 PHP_INI_END()
 /* }}} */
@@ -352,6 +354,62 @@ int set_basedir(TSRMLS_DC)
 	return SUCCESS;
 }
 /* }}} */
+
+int is_in_trusted_code_dir(const char* file TSRMLS_DC)
+{
+	char *base = SANDBOX_G(trusted_code_dir);
+	while (base && *base != '\0') {
+		char* separator = strstr(base, ":");
+		char* this_base = NULL;
+		if (separator == NULL) // the last part
+			this_base = strdup(base);
+		else // not last part
+			this_base = strndup(base, separator - base);
+
+		int base_len = strlen(this_base);
+		if (base_len > 0 && strncmp(file, this_base, base_len) == 0) {
+			if (this_base[base_len - 1] == '/') {
+				return SUCCESS;
+			}
+			else {
+				// baseurl not terminated with slash, but it is a directory
+				// so we check that the file path to follow with a slash
+				return ((file[base_len] == '/') ? SUCCESS : FAILURE);
+			}
+		}
+
+		if (separator == NULL) // the last part
+			return FAILURE;
+		else // skip separator
+			base = separator + 1;
+	}
+	return FAILURE;
+}
+
+int is_in_upload_dir(const char *file TSRMLS_DC)
+{
+	char *root_path = php_app_root_path(TSRMLS_CC);
+	int len_file = strlen(file);
+	int len_root = strlen(root_path);
+	if (len_file < len_root || strncmp(root_path, file, len_root) != 0) {
+		efree(root_path);
+		return FAILURE;
+	}
+	efree(root_path);
+
+	file += len_root;
+	char *upload_dir = SANDBOX_G(user_upload_dir);
+	int len_upload_dir = strlen(upload_dir);
+	if (len_upload_dir == 0)
+		return FAILURE;
+	if (strncmp(file, upload_dir, len_upload_dir) != 0)
+		return FAILURE;
+	// if upload_dir is not terminated with slash, we check the matched part is followed by slash in file path
+	if (upload_dir[len_upload_dir - 1] == '/' || file[len_upload_dir] == '/')
+		return SUCCESS;
+	else
+		return FAILURE;
+}
 
 /* {{{ PHP_RSHUTDOWN_FUNCTION
  */
