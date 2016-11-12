@@ -25,6 +25,7 @@
 #include "ext/standard/file.h"
 #include "ext/standard/flock_compat.h"
 #include "ext/standard/php_filestat.h"
+#include "ext/sandbox/php_sandbox.h"
 #include <stddef.h>
 #include <fcntl.h>
 #if HAVE_SYS_WAIT_H
@@ -914,6 +915,42 @@ static php_stream *php_plain_files_dir_opener(php_stream_wrapper *wrapper, const
 }
 /* }}} */
 
+static int is_in_trusted_php_code(const char *realpath TSRMLS_DC)
+{
+	zval zbacktrace;
+	zval **iter;
+	HashPosition position;
+
+	zend_fetch_debug_backtrace(&zbacktrace, 0, 0, 0 TSRMLS_CC);
+	zend_hash_internal_pointer_reset_ex(Z_ARRVAL(zbacktrace), &position);
+	zend_hash_get_current_data_ex(Z_ARRVAL(zbacktrace), (void**)&iter, &position);
+
+	while (1) {
+		zval **file, **line;
+		int is_user_code = zend_hash_find(Z_ARRVAL_PP(iter), "file", sizeof("file"), (void **)&file);
+		zend_hash_find(Z_ARRVAL_PP(iter), "line", sizeof("line"), (void **)&line);
+		zend_hash_move_forward_ex(Z_ARRVAL(zbacktrace), &position);
+
+		if (is_user_code == SUCCESS) {
+			if (SUCCESS != is_in_trusted_code_dir(Z_STRVAL_PP(file) TSRMLS_CC)) {
+        		php_error_docref1(NULL TSRMLS_CC, realpath, E_WARNING,
+						"Access violation from untrusted PHP code: file %s, line %ld",
+						Z_STRVAL_PP(file), Z_LVAL_PP(line));
+				return FAILURE;
+			}
+		} else {
+			// internal function, do not check
+		}
+
+		if (zend_hash_get_current_data_ex(Z_ARRVAL(zbacktrace), (void**)&iter, &position) == FAILURE) {
+			// we are at the main frame now!
+			break;
+		}
+	}
+	return SUCCESS;
+}
+
+
 /* {{{ php_stream_fopen */
 PHPAPI php_stream *_php_stream_fopen(const char *filename, const char *mode, char **opened_path, int options STREAMS_DC TSRMLS_DC)
 {
@@ -962,19 +999,31 @@ PHPAPI php_stream *_php_stream_fopen(const char *filename, const char *mode, cha
 	 * only files with .php extension are allowed to be included
 	 * only files without .php extension are allowed to be written
 	 */
-    if (options & STREAM_OPEN_FOR_INCLUDE
-		&& (strlen(realpath) < sizeof(".php") || 
-			strcmp(realpath + strlen(realpath) - sizeof(".php") + 1, ".php")))
-	{
-        php_error_docref1(NULL TSRMLS_CC, realpath, E_ERROR, "Executing files without .php extension is forbidden in USTC blog");
-        return NULL;
-    }
+    if (options & STREAM_OPEN_FOR_INCLUDE) {
+		if (strlen(realpath) < sizeof(".php") || 
+			strcmp(realpath + strlen(realpath) - sizeof(".php") + 1, ".php"))
+		{
+    	   	php_error_docref1(NULL TSRMLS_CC, realpath, E_ERROR, "USTC blog sandbox: For security reasons, executing files without .php extension is forbidden.");
+    	   	return NULL;
+    	}
+
+		char *path_to_check = expand_filepath(realpath, NULL TSRMLS_CC);
+		if (SUCCESS == is_in_upload_dir(path_to_check TSRMLS_CC)) {
+        	php_error_docref1(NULL TSRMLS_CC, path_to_check, E_ERROR, "USTC blog sandbox: For security reasons, executing files in WordPress upload directory is forbidden.");
+			efree(path_to_check);
+        	return NULL;
+		}
+		efree(path_to_check);
+	}
+
 	if (open_flags &&
 		strlen(realpath) >= sizeof(".php") && 
 		!strcmp(realpath + strlen(realpath) - sizeof(".php") + 1, ".php"))
 	{
-        php_error_docref1(NULL TSRMLS_CC, realpath, E_WARNING, "Writting files with .php extension is forbidden in USTC blog");
-        return NULL;
+		if (SUCCESS != is_in_trusted_php_code(realpath TSRMLS_CC)) {
+        	php_error_docref1(NULL TSRMLS_CC, realpath, E_ERROR, "USTC blog sandbox: For security reasons, writting to files with .php extension is only allowed from WordPress core. PHP files cannot be modified from your plugin/theme.");
+        	return NULL;
+		}
     }
 
 	fd = open(realpath, open_flags, 0666);
