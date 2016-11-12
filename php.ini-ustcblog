@@ -1889,6 +1889,8 @@ admindb.pass = ADMINDB_FIXME
 ; the real "root" is <sandbox.chroot_basedir>:<sandbox.chroot_basedir_peruser/blogname>
 sandbox.chroot_basedir = /tmp:/opt/ustcblog/wordpress:/opt/ustcblog/wordpress-test
 sandbox.chroot_basedir_peruser = /srv/blog/base
+sandbox.trusted_code_dir = /opt/ustcblog/wordpress:/opt/ustcblog/wordpress-test
+sandbox.user_upload_dir = wp-content/uploads
 
 ; If you are deploying on *.localhost, change the following field to "localhost"
 ; Otherwise you will get permission denied.
