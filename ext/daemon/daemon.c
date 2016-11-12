@@ -160,7 +160,7 @@ PHP_FUNCTION(install_blog_filesystem)
 
 	char* appname = NULL;
 	int appname_len;
-	const char *method = "async-callback";
+	const char *method = "sync";
 	const char *action = "install-blog-filesystem";
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &appname, &appname_len) == FAILURE) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "wrong parameters passed\n  Usage: install_blog_filesystem(string appname)");
