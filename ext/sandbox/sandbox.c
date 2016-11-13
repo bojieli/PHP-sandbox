@@ -389,6 +389,8 @@ int is_in_trusted_code_dir(const char* file TSRMLS_DC)
 int is_in_upload_dir(const char *file TSRMLS_DC)
 {
 	char *root_path = php_app_root_path(TSRMLS_CC);
+	if (root_path == NULL) // not in app, should be in privileged mode
+		return FAILURE;
 	int len_file = strlen(file);
 	int len_root = strlen(root_path);
 	if (len_file < len_root || strncmp(root_path, file, len_root) != 0) {
@@ -399,6 +401,8 @@ int is_in_upload_dir(const char *file TSRMLS_DC)
 
 	file += len_root;
 	char *upload_dir = SANDBOX_G(user_upload_dir);
+	if (upload_dir == NULL) // not configured
+		return FAILURE;
 	int len_upload_dir = strlen(upload_dir);
 	if (len_upload_dir == 0)
 		return FAILURE;
